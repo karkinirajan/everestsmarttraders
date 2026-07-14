@@ -16,10 +16,12 @@ import {
   Star,
   HelpCircle,
   Settings,
+  Users,
   ImageIcon,
   LogOut,
   ChevronRight,
   ExternalLink,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,7 +34,15 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  adminOnly?: boolean;
+}
+
+const navItems: { group: string; items: NavItem[] }[] = [
   {
     group: "Content",
     items: [
@@ -63,6 +73,7 @@ const navItems = [
     group: "System",
     items: [
       { href: "/admin/media", label: "Media", icon: ImageIcon },
+      { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -129,7 +140,9 @@ export function AdminSidebar({
               {group.group}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map(({ href, label, icon: Icon, exact }) => (
+              {group.items
+                .filter((item) => !item.adminOnly || role === "admin")
+                .map(({ href, label, icon: Icon, exact }) => (
                 <li key={href}>
                   <Link
                     href={href}

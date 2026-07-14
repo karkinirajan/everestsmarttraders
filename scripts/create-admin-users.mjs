@@ -1,10 +1,13 @@
 /**
  * Create admin auth users in Supabase.
- *   node scripts/create-admin-users.mjs
+ *   ADMIN_INITIAL_PASSWORD=... node scripts/create-admin-users.mjs
  *
  * Creates three users (admin, kneeraazon, kailashk) with email
  * username@est.local, confirms them, and promotes their profile role to 'admin'.
- * Re-running is safe: existing users are updated (password reset, role ensured).
+ * Re-running is safe: existing users keep their current password (email, name,
+ * and role are ensured). No password is stored in this script — new users get
+ * the one-time ADMIN_INITIAL_PASSWORD (env var or .env entry), and passwords
+ * are managed afterwards in the admin dashboard under Admin → Users.
  */
 
 import { readFileSync, existsSync } from "fs";
@@ -48,7 +51,11 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-const PASSWORD = "admin123!!";
+// One-time password for newly created users only — never hardcoded here.
+// Existing users are never password-reset; use Admin → Users in the dashboard.
+const INITIAL_PASSWORD =
+  process.env.ADMIN_INITIAL_PASSWORD ?? envVars["ADMIN_INITIAL_PASSWORD"];
+
 const USERS = [
   { username: "admin", full_name: "Admin" },
   { username: "kneeraazon", full_name: "Kneeraazon" },
@@ -90,9 +97,10 @@ async function ensureUser({ username, full_name }) {
   let userId;
 
   if (existing) {
+    // Never reset an existing user's password here — that's done from the
+    // admin dashboard (Admin → Users).
     const { data, error } = await supabase.auth.admin.updateUserById(existing.id, {
       email,
-      password: PASSWORD,
       email_confirm: true,
       user_metadata: { full_name },
     });
@@ -104,9 +112,19 @@ async function ensureUser({ username, full_name }) {
         : `  ✓ updated existing user (${userId})`,
     );
   } else {
+    if (!INITIAL_PASSWORD) {
+      throw new Error(
+        "ADMIN_INITIAL_PASSWORD is required to create new users. " +
+          "Set it as an env var or in .env.local, e.g. " +
+          "ADMIN_INITIAL_PASSWORD=... node scripts/create-admin-users.mjs",
+      );
+    }
+    if (INITIAL_PASSWORD.length < 8) {
+      throw new Error("ADMIN_INITIAL_PASSWORD must be at least 8 characters.");
+    }
     const { data, error } = await supabase.auth.admin.createUser({
       email,
-      password: PASSWORD,
+      password: INITIAL_PASSWORD,
       email_confirm: true,
       user_metadata: { full_name },
     });
