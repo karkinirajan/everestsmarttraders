@@ -1,25 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, Phone, Mail } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
+import { INQUIRY_STATUS_LABELS, INQUIRY_STATUS_STYLES } from "@/lib/constants";
 import { InquiryActions } from "./inquiry-actions";
 
 async function getInquiries() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
+  const supabase = createAdminClient();
 
   const { data } = await supabase
     .from("inquiries")
@@ -29,14 +18,6 @@ async function getInquiries() {
 
   return data ?? [];
 }
-
-const statusVariants: Record<string, { label: string; class: string }> = {
-  new: { label: "New", class: "bg-blue-500/15 text-blue-600" },
-  contacted: { label: "Contacted", class: "bg-yellow-500/15 text-yellow-600" },
-  quoted: { label: "Quoted", class: "bg-purple-500/15 text-purple-600" },
-  closed: { label: "Closed", class: "bg-green-500/15 text-green-600" },
-  spam: { label: "Spam", class: "bg-red-500/15 text-red-600" },
-};
 
 export default async function InquiriesPage() {
   await connection();
@@ -50,7 +31,7 @@ export default async function InquiriesPage() {
           <h1 className="text-2xl font-bold text-foreground">Inquiries</h1>
           <p className="text-muted-foreground mt-0.5">
             {newCount > 0 ? (
-              <span className="text-amber-500 font-medium">{newCount} new</span>
+              <span className="text-est-amber font-medium">{newCount} new</span>
             ) : (
               "All up to date"
             )}{" "}
@@ -85,7 +66,8 @@ export default async function InquiriesPage() {
             <tbody className="divide-y divide-border">
               {inquiries.length > 0 ? (
                 inquiries.map((inquiry) => {
-                  const status = statusVariants[inquiry.status] ?? { label: inquiry.status, class: "bg-muted text-muted-foreground" };
+                  const statusLabel = INQUIRY_STATUS_LABELS[inquiry.status] ?? inquiry.status;
+                  const statusClass = INQUIRY_STATUS_STYLES[inquiry.status] ?? "bg-muted text-muted-foreground";
                   return (
                     <tr key={inquiry.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3.5">
@@ -110,8 +92,8 @@ export default async function InquiriesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${status.class}`}>
-                          {status.label}
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusClass}`}>
+                          {statusLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">

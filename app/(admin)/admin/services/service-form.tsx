@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 import { slugify } from "@/lib/utils";
 
 interface ServiceFormProps {
@@ -37,11 +37,6 @@ export function ServiceForm({ initialData }: ServiceFormProps) {
   const [slugManual, setSlugManual] = useState(!!initialData);
   const [benefits, setBenefits] = useState<string[]>(
     initialData?.key_benefits?.length ? initialData.key_benefits : [""],
-  );
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 
   function handleNameChange(val: string) {
@@ -82,27 +77,23 @@ export function ServiceForm({ initialData }: ServiceFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        const { error: err } = await supabase
-          .from("services")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", initialData.id);
-        if (err) {
-          setError(err.message);
+        const result = await adminUpdate("services", initialData.id, {
+          ...payload,
+          updated_at: new Date().toISOString(),
+        });
+        if (!result.success) {
+          setError(result.error);
           return;
         }
         setSaved(true);
         router.refresh();
       } else {
-        const { data, error: err } = await supabase
-          .from("services")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (err) {
-          setError(err.message);
+        const result = await adminInsert<{ id: string }>("services", payload);
+        if (!result.success) {
+          setError(result.error);
           return;
         }
-        if (data?.id) router.push(`/admin/services/${data.id}`);
+        router.push(`/admin/services/${result.data.id}`);
       }
     });
   }
@@ -110,7 +101,7 @@ export function ServiceForm({ initialData }: ServiceFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" /> Saved successfully.
         </div>
       )}

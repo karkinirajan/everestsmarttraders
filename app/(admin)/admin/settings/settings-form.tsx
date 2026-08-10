@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminUpsert } from "@/lib/actions/admin-mutate";
 import { useRouter } from "next/navigation";
 
 interface SettingsFormProps {
@@ -29,17 +29,14 @@ function get(
 
 export function SettingsForm({ initialSettings }: SettingsFormProps) {
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaved(false);
+    setError(null);
     const fd = new FormData(e.currentTarget);
 
     const updates = [
@@ -68,9 +65,11 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 
     startTransition(async () => {
       for (const { key, value } of updates) {
-        await supabase
-          .from("site_settings")
-          .upsert({ key, value }, { onConflict: "key" });
+        const result = await adminUpsert("site_settings", { key, value }, "key");
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
       }
       setSaved(true);
       router.refresh();
@@ -80,9 +79,14 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" />
           Settings saved successfully.
+        </div>
+      )}
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
         </div>
       )}
 

@@ -1,18 +1,12 @@
 import Link from "next/link";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
 async function getFaqs() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("faqs")
     .select("id, question, category, position, is_published")
@@ -63,7 +57,7 @@ export default async function FaqsPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-muted-foreground hidden sm:block">#{faq.position}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      faq.is_published ? "bg-green-500/15 text-green-600" : "bg-muted text-muted-foreground"
+                      faq.is_published ? "bg-success-muted text-success" : "bg-muted text-muted-foreground"
                     }`}>
                       {faq.is_published ? "Published" : "Hidden"}
                     </span>

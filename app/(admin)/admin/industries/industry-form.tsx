@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 import { slugify } from "@/lib/utils";
 
 interface IndustryFormProps {
@@ -34,11 +34,6 @@ export function IndustryForm({ initialData }: IndustryFormProps) {
   const [slug, setSlug] = useState(initialData?.slug ?? "");
   const [slugManual, setSlugManual] = useState(!!initialData);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   function handleNameChange(val: string) {
     setName(val);
     if (!slugManual) setSlug(slugify(val));
@@ -63,21 +58,14 @@ export function IndustryForm({ initialData }: IndustryFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        const { error: err } = await supabase
-          .from("industries")
-          .update(payload)
-          .eq("id", initialData.id);
-        if (err) { setError(err.message); return; }
+        const result = await adminUpdate("industries", initialData.id, payload);
+        if (!result.success) { setError(result.error); return; }
         setSaved(true);
         router.refresh();
       } else {
-        const { data, error: err } = await supabase
-          .from("industries")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (err) { setError(err.message); return; }
-        if (data?.id) router.push(`/admin/industries/${data.id}`);
+        const result = await adminInsert<{ id: string }>("industries", payload);
+        if (!result.success) { setError(result.error); return; }
+        router.push(`/admin/industries/${result.data.id}`);
       }
     });
   }
@@ -85,7 +73,7 @@ export function IndustryForm({ initialData }: IndustryFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" /> Saved successfully.
         </div>
       )}

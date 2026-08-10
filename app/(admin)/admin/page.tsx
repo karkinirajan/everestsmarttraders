@@ -10,24 +10,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
+import { INQUIRY_STATUS_STYLES } from "@/lib/constants";
 
 async function getAdminStats() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
+  const supabase = createAdminClient();
 
   const [
     productsRes,
@@ -55,14 +45,6 @@ async function getAdminStats() {
     recentInquiries: recentInquiriesRes.data ?? [],
   };
 }
-
-const statusColors: Record<string, string> = {
-  new: "bg-blue-500/10 text-blue-600",
-  contacted: "bg-yellow-500/10 text-yellow-600",
-  quoted: "bg-purple-500/10 text-purple-600",
-  closed: "bg-green-500/10 text-green-600",
-  spam: "bg-red-500/10 text-red-600",
-};
 
 export default async function AdminDashboard() {
   await connection();
@@ -158,7 +140,7 @@ export default async function AdminDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[inquiry.status] ?? "bg-muted text-muted-foreground"}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${INQUIRY_STATUS_STYLES[inquiry.status] ?? "bg-muted text-muted-foreground"}`}>
                     {inquiry.status}
                   </span>
                   <span className="text-xs text-muted-foreground hidden sm:block">

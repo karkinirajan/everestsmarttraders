@@ -1,18 +1,12 @@
 import Link from "next/link";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
 async function getServices() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("services")
     .select("id, name, slug, intro, icon, position, is_active, is_published")
@@ -75,7 +69,7 @@ export default async function ServicesPage() {
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         svc.is_published
-                          ? "bg-green-500/15 text-green-600"
+                          ? "bg-success-muted text-success"
                           : "bg-muted text-muted-foreground"
                       }`}>
                         {svc.is_published ? "Published" : "Draft"}

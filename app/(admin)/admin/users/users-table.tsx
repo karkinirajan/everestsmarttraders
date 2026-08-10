@@ -132,7 +132,7 @@ function UserRow({
           <span
             className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
               profile.role === "admin"
-                ? "bg-green-500/15 text-green-600"
+                ? "bg-success-muted text-success"
                 : "bg-muted text-muted-foreground"
             }`}
           >
@@ -216,7 +216,7 @@ function UserRow({
             {result && (
               <p
                 className={`text-sm flex items-center gap-1.5 ${
-                  result.success ? "text-green-600" : "text-destructive"
+                  result.success ? "text-success" : "text-destructive"
                 } ${isEditing ? "mt-2" : ""}`}
               >
                 {result.success && <CheckCircle2 className="size-4" />}

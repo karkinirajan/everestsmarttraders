@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 import { slugify } from "@/lib/utils";
 
 interface Category {
@@ -45,11 +45,6 @@ export function ProductForm({ categories, initialData }: ProductFormProps) {
   const [slugManual, setSlugManual] = useState(!!initialData);
   const [features, setFeatures] = useState<string[]>(
     initialData?.features ?? [""],
-  );
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 
   function handleNameChange(val: string) {
@@ -91,27 +86,23 @@ export function ProductForm({ categories, initialData }: ProductFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        const { error: err } = await supabase
-          .from("products")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", initialData.id);
-        if (err) {
-          setError(err.message);
+        const result = await adminUpdate("products", initialData.id, {
+          ...payload,
+          updated_at: new Date().toISOString(),
+        });
+        if (!result.success) {
+          setError(result.error);
           return;
         }
         setSaved(true);
         router.refresh();
       } else {
-        const { data, error: err } = await supabase
-          .from("products")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (err) {
-          setError(err.message);
+        const result = await adminInsert<{ id: string }>("products", payload);
+        if (!result.success) {
+          setError(result.error);
           return;
         }
-        if (data?.id) router.push(`/admin/products/${data.id}`);
+        router.push(`/admin/products/${result.data.id}`);
       }
     });
   }
@@ -119,7 +110,7 @@ export function ProductForm({ categories, initialData }: ProductFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" /> Saved successfully.
         </div>
       )}
@@ -170,7 +161,7 @@ export function ProductForm({ categories, initialData }: ProductFormProps) {
               id="category_id"
               name="category_id"
               defaultValue={initialData?.category_id ?? ""}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground"
+              className="flex h-9 w-full rounded-lg border border-input bg-field px-3 py-1 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 text-foreground"
             >
               <option value="">— No Category —</option>
               {categories.map((c) => (

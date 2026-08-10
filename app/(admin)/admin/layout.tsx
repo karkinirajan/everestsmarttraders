@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { AdminShell } from "@/components/admin/shell";
 
 export const metadata: Metadata = {
@@ -18,27 +18,18 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
+  const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Verify admin/editor role
-  const { data: profile } = await supabase
+  // Verify admin/editor role via the service-role client so the gate holds
+  // regardless of whether RLS on profiles is enabled/configured — the
+  // session check above already proves who the caller is.
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from("profiles")
     .select("role, full_name")
     .eq("id", user.id)

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 
 interface FaqFormProps {
   initialData?: {
@@ -27,11 +27,6 @@ export function FaqForm({ initialData }: FaqFormProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaved(false);
@@ -48,21 +43,14 @@ export function FaqForm({ initialData }: FaqFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        const { error: err } = await supabase
-          .from("faqs")
-          .update(payload)
-          .eq("id", initialData.id);
-        if (err) { setError(err.message); return; }
+        const result = await adminUpdate("faqs", initialData.id, payload);
+        if (!result.success) { setError(result.error); return; }
         setSaved(true);
         router.refresh();
       } else {
-        const { data, error: err } = await supabase
-          .from("faqs")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (err) { setError(err.message); return; }
-        if (data?.id) router.push(`/admin/faqs/${data.id}`);
+        const result = await adminInsert<{ id: string }>("faqs", payload);
+        if (!result.success) { setError(result.error); return; }
+        router.push(`/admin/faqs/${result.data.id}`);
       }
     });
   }
@@ -70,7 +58,7 @@ export function FaqForm({ initialData }: FaqFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" /> Saved successfully.
         </div>
       )}

@@ -28,6 +28,22 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Form field surface — deliberately distinct from --background and --card
+     so inputs read as writable wells rather than flat panels. */
+  --color-field: var(--field);
+  --color-placeholder: var(--placeholder);
+
+  /* Status tokens — every one is paired with a *-muted backing surface that
+     keeps the pair above 4.5:1 in both themes. */
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --color-violet: var(--violet);
+  --color-violet-muted: var(--violet-muted);
+
   /* EST-specific brand tokens */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
@@ -76,6 +92,24 @@
   --ring: oklch(0.26 0.095 249);
   --radius: 0.5rem;
 
+  /* Form field well — distinct from --card so inputs read as writable
+     surfaces rather than flat panels. */
+  --field: oklch(1 0 0);
+  --placeholder: oklch(0.58 0.015 255);
+
+  /* Status tokens — foreground + muted backing surface, each pair kept
+     above 4.5:1 contrast. */
+  --success: oklch(0.45 0.14 152);
+  --success-muted: oklch(0.94 0.05 152);
+  --warning: oklch(0.5 0.15 75);
+  --warning-muted: oklch(0.94 0.07 75);
+  --info: oklch(0.48 0.16 255);
+  --info-muted: oklch(0.94 0.04 255);
+  --violet: oklch(0.5 0.18 305);
+  --violet-muted: oklch(0.94 0.05 305);
+
+  color-scheme: light;
+
   /* EST Brand tokens */
   --brand: oklch(0.26 0.095 249);              /* Deep navy */
   --brand-foreground: oklch(0.985 0 0);
@@ -112,8 +146,30 @@
 
   --destructive: oklch(0.65 0.22 25);
   --border: oklch(0.26 0.02 255);
-  --input: oklch(0.22 0.02 255);
+  /* Field border — brighter than --border so form controls read as
+     distinct, clickable wells against the card behind them. */
+  --input: oklch(0.34 0.02 255);
   --ring: oklch(0.55 0.12 249);
+
+  /* Form field well — lighter than --card (0.16) so every input, textarea,
+     and select visibly separates from the surface it sits on instead of
+     disappearing into a flat black panel. */
+  --field: oklch(0.225 0.02 255);
+  --placeholder: oklch(0.62 0.02 255);
+
+  /* Status tokens — bright foreground on a dark tinted backing, tuned for
+     dark surfaces (the light-mode green-50/amber-50 pairing is unreadable
+     here). */
+  --success: oklch(0.78 0.16 152);
+  --success-muted: oklch(0.28 0.06 152);
+  --warning: oklch(0.8 0.15 75);
+  --warning-muted: oklch(0.29 0.06 75);
+  --info: oklch(0.74 0.13 235);
+  --info-muted: oklch(0.27 0.05 235);
+  --violet: oklch(0.76 0.15 305);
+  --violet-muted: oklch(0.28 0.06 305);
+
+  color-scheme: dark;
 
   --brand: oklch(0.55 0.12 249);
   --brand-foreground: oklch(0.985 0 0);

@@ -8,37 +8,43 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 import { slugify } from "@/lib/utils";
 
+interface Industry {
+  id: string;
+  name: string;
+}
+
 interface ProjectFormProps {
+  industries: Industry[];
   initialData?: {
     id: string;
     title: string;
     slug: string;
-    summary: string | null;
-    description: string | null;
     location: string | null;
-    client_name: string | null;
+    industry_id: string | null;
+    summary: string | null;
+    challenge: string | null;
+    solution: string | null;
+    result: string | null;
     cover_image_url: string | null;
     is_published: boolean;
     is_featured: boolean;
     completed_at: string | null;
+    seo_title: string | null;
+    seo_description: string | null;
   };
 }
 
-export function ProjectForm({ initialData }: ProjectFormProps) {
+export function ProjectForm({ industries, initialData }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [slug, setSlug] = useState(initialData?.slug ?? "");
   const [slugManual, setSlugManual] = useState(!!initialData);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   function handleTitleChange(val: string) {
     setTitle(val);
@@ -48,37 +54,44 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaved(false);
+    setError(null);
     const fd = new FormData(e.currentTarget);
 
     const payload = {
       title: fd.get("title") as string,
       slug: fd.get("slug") as string,
-      summary: fd.get("summary") as string || null,
-      description: fd.get("description") as string || null,
-      location: fd.get("location") as string || null,
-      client_name: fd.get("client_name") as string || null,
-      cover_image_url: fd.get("cover_image_url") as string || null,
-      completed_at: fd.get("completed_at") as string || null,
+      summary: (fd.get("summary") as string) || null,
+      challenge: (fd.get("challenge") as string) || null,
+      solution: (fd.get("solution") as string) || null,
+      result: (fd.get("result") as string) || null,
+      location: (fd.get("location") as string) || null,
+      industry_id: (fd.get("industry_id") as string) || null,
+      cover_image_url: (fd.get("cover_image_url") as string) || null,
+      completed_at: (fd.get("completed_at") as string) || null,
+      seo_title: (fd.get("seo_title") as string) || null,
+      seo_description: (fd.get("seo_description") as string) || null,
       is_published: fd.get("is_published") === "on",
       is_featured: fd.get("is_featured") === "on",
     };
 
     startTransition(async () => {
       if (initialData?.id) {
-        await supabase
-          .from("projects")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", initialData.id);
-      } else {
-        const { data } = await supabase
-          .from("projects")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (data?.id) {
-          router.push(`/admin/projects/${data.id}`);
+        const result = await adminUpdate("projects", initialData.id, {
+          ...payload,
+          updated_at: new Date().toISOString(),
+        });
+        if (!result.success) {
+          setError(result.error);
           return;
         }
+      } else {
+        const result = await adminInsert<{ id: string }>("projects", payload);
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+        router.push(`/admin/projects/${result.data.id}`);
+        return;
       }
       setSaved(true);
       router.refresh();
@@ -88,9 +101,14 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" />
           Saved successfully.
+        </div>
+      )}
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
         </div>
       )}
 
@@ -131,13 +149,20 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="client_name">Client Name</Label>
-            <Input
-              id="client_name"
-              name="client_name"
-              defaultValue={initialData?.client_name ?? ""}
-              placeholder="Hotel name or company (optional)"
-            />
+            <Label htmlFor="industry_id">Industry</Label>
+            <select
+              id="industry_id"
+              name="industry_id"
+              defaultValue={initialData?.industry_id ?? ""}
+              className="flex h-9 w-full rounded-lg border border-input bg-field px-3 py-1 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 text-foreground"
+            >
+              <option value="">— No Industry —</option>
+              {industries.map((ind) => (
+                <option key={ind.id} value={ind.id}>
+                  {ind.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -172,16 +197,69 @@ export function ProjectForm({ initialData }: ProjectFormProps) {
             rows={2}
           />
         </div>
+      </div>
+
+      {/* Case study */}
+      <div className="p-5 bg-card border border-border rounded-xl space-y-4">
+        <h2 className="font-semibold text-foreground text-sm">Case Study</h2>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Shown on the public project page as &ldquo;The Challenge / Our Solution / The Result&rdquo;.
+        </p>
 
         <div className="space-y-1.5">
-          <Label htmlFor="description">Full Description (HTML)</Label>
+          <Label htmlFor="challenge">The Challenge</Label>
           <Textarea
-            id="description"
-            name="description"
-            defaultValue={initialData?.description ?? ""}
-            placeholder="<p>Detailed case study...</p>"
-            rows={8}
-            className="font-mono text-xs"
+            id="challenge"
+            name="challenge"
+            defaultValue={initialData?.challenge ?? ""}
+            placeholder="What problem did the client need solved?"
+            rows={4}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="solution">Our Solution</Label>
+          <Textarea
+            id="solution"
+            name="solution"
+            defaultValue={initialData?.solution ?? ""}
+            placeholder="What did EST install or configure?"
+            rows={4}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="result">The Result</Label>
+          <Textarea
+            id="result"
+            name="result"
+            defaultValue={initialData?.result ?? ""}
+            placeholder="Outcome for the client after installation"
+            rows={4}
+          />
+        </div>
+      </div>
+
+      {/* SEO */}
+      <div className="p-5 bg-card border border-border rounded-xl space-y-4">
+        <h2 className="font-semibold text-foreground text-sm">SEO</h2>
+        <div className="space-y-1.5">
+          <Label htmlFor="seo_title">Meta Title</Label>
+          <Input
+            id="seo_title"
+            name="seo_title"
+            defaultValue={initialData?.seo_title ?? ""}
+            placeholder="Overrides page title in search results"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="seo_description">Meta Description</Label>
+          <Textarea
+            id="seo_description"
+            name="seo_description"
+            defaultValue={initialData?.seo_description ?? ""}
+            placeholder="150–160 characters for search results"
+            rows={2}
           />
         </div>
       </div>
