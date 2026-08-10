@@ -26,6 +26,17 @@ export const INQUIRY_STATUS_LABELS: Record<string, string> = {
   spam: "Spam",
 };
 
+// Inquiry status pill styling — theme tokens tuned for contrast on the
+// (always-dark) admin dashboard, instead of hardcoded Tailwind shades that
+// can fall below WCAG contrast on a dark card (e.g. text-blue-600).
+export const INQUIRY_STATUS_STYLES: Record<string, string> = {
+  new: "bg-info-muted text-info",
+  contacted: "bg-warning-muted text-warning",
+  quoted: "bg-violet-muted text-violet",
+  closed: "bg-success-muted text-success",
+  spam: "bg-destructive/10 text-destructive",
+};
+
 // Nav links — these can later come from DB but are defined here as fallback
 export const PUBLIC_NAV_LINKS = [
   { label: "Showcase", href: "/showcase" },

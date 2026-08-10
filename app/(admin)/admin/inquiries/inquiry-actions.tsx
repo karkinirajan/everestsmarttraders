@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminUpdate } from "@/lib/actions/admin-mutate";
 
 const statuses = ["new", "contacted", "quoted", "closed", "spam"] as const;
 
@@ -58,19 +58,14 @@ export function InquiryActions({
     }
   }, [open]);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
   function handleStatusChange(status: string) {
     setOpen(false);
     triggerRef.current?.focus();
     startTransition(async () => {
-      await supabase
-        .from("inquiries")
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", inquiryId);
+      await adminUpdate("inquiries", inquiryId, {
+        status,
+        updated_at: new Date().toISOString(),
+      });
       router.refresh();
     });
   }

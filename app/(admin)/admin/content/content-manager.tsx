@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminUpsert } from "@/lib/actions/admin-mutate";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,34 +58,34 @@ export function ContentManager({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   async function saveAll() {
     setSaved(false);
     setError(null);
 
     startTransition(async () => {
-      try {
-        for (const section of sections) {
-          const { error: sectionError } = await supabase.from("homepage_sections").upsert(
-            {
-              section_key: section.section_key,
-              title: section.title,
-              subtitle: section.subtitle,
-              content: section.content,
-              is_visible: section.is_visible,
-              position: section.position,
-            },
-            { onConflict: "section_key" }
-          );
-          if (sectionError) throw sectionError;
+      for (const section of sections) {
+        const result = await adminUpsert(
+          "homepage_sections",
+          {
+            section_key: section.section_key,
+            title: section.title,
+            subtitle: section.subtitle,
+            content: section.content,
+            is_visible: section.is_visible,
+            position: section.position,
+          },
+          "section_key",
+        );
+        if (!result.success) {
+          setError(result.error);
+          return;
         }
+      }
 
-        for (const item of announcements) {
-          const { error: announcementError } = await supabase.from("announcements").upsert({
+      for (const item of announcements) {
+        const result = await adminUpsert(
+          "announcements",
+          {
             id: item.id,
             message: item.message,
             link: item.link,
@@ -94,37 +94,43 @@ export function ContentManager({
             is_active: item.is_active,
             starts_at: item.starts_at,
             ends_at: item.ends_at,
-          });
-          if (announcementError) throw announcementError;
+          },
+          "id",
+        );
+        if (!result.success) {
+          setError(result.error);
+          return;
         }
-
-        for (const item of seoOverrides) {
-          const { error: seoError } = await supabase.from("seo_overrides").upsert(
-            {
-              path: item.path,
-              title: item.title,
-              description: item.description,
-              og_image: item.og_image,
-              canonical: item.canonical,
-              noindex: item.noindex,
-              structured_data: item.structured_data,
-            },
-            { onConflict: "path" }
-          );
-          if (seoError) throw seoError;
-        }
-
-        setSaved(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Unable to save content");
       }
+
+      for (const item of seoOverrides) {
+        const result = await adminUpsert(
+          "seo_overrides",
+          {
+            path: item.path,
+            title: item.title,
+            description: item.description,
+            og_image: item.og_image,
+            canonical: item.canonical,
+            noindex: item.noindex,
+            structured_data: item.structured_data,
+          },
+          "path",
+        );
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+      }
+
+      setSaved(true);
     });
   }
 
   return (
     <div className="space-y-6">
       {(saved || error) && (
-        <div className={saved ? "flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg" : "text-sm text-red-600 bg-red-500/10 px-4 py-3 rounded-lg"}>
+        <div className={saved ? "flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg" : "text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg"}>
           {saved && <CheckCircle2 className="size-4" />}
           {saved ? "Content saved successfully." : error}
         </div>

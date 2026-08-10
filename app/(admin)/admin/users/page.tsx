@@ -1,18 +1,13 @@
 import { redirect } from "next/navigation";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import type { Profile } from "@/types";
 import { UsersTable } from "./users-table";
 
 async function getData() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -28,7 +23,10 @@ async function getData() {
   // Only admins may manage user credentials (editors can use the rest of the dashboard)
   if (me?.role !== "admin") redirect("/admin");
 
-  const { data: profiles } = await supabase
+  // Service-role client for the actual list: works whether or not RLS on
+  // profiles is configured to let admins read every row.
+  const admin = createAdminClient();
+  const { data: profiles } = await admin
     .from("profiles")
     .select("id, email, full_name, avatar_url, role, created_at, updated_at")
     .order("created_at", { ascending: true });

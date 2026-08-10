@@ -2,18 +2,12 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "../product-form";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
 async function getData(id: string) {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+  const supabase = createAdminClient();
   const [productRes, categoriesRes] = await Promise.all([
     supabase.from("products").select("*").eq("id", id).single(),
     supabase.from("product_categories").select("id, name, slug").eq("is_active", true).order("position"),

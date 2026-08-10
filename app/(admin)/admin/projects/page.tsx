@@ -3,8 +3,7 @@ import Image from "next/image";
 import { Plus, Pencil, MapPin } from "lucide-react";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
@@ -12,19 +11,7 @@ import { formatDate } from "@/lib/utils";
 
 async function getAdminProjects() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
+  const supabase = createAdminClient();
 
   const { data } = await supabase
     .from("projects")
@@ -127,14 +114,14 @@ async function AdminProjectsContent() {
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             project.is_published
-                              ? "bg-green-500/15 text-green-600"
+                              ? "bg-success-muted text-success"
                               : "bg-muted text-muted-foreground"
                           }`}
                         >
                           {project.is_published ? "Published" : "Draft"}
                         </span>
                         {project.is_featured && (
-                          <span className="text-xs text-amber-500">
+                          <span className="text-xs text-est-amber">
                             Featured
                           </span>
                         )}

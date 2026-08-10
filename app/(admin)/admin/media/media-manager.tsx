@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminUploadMedia, adminDeleteMedia } from "@/lib/actions/media";
 
 interface MediaAsset {
   id: string;
@@ -32,15 +32,6 @@ interface MediaManagerProps {
 }
 
 const FOLDERS = ["general", "products", "projects", "blog", "services"];
-
-async function hashFile(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-    .slice(0, 16); // first 16 hex chars is plenty for deduplication
-}
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return "—";
@@ -61,11 +52,6 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [filterFolder, setFilterFolder] = useState<string>("all");
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const file = fileRef.current?.files?.[0];
@@ -75,59 +61,17 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
     setUploadError(null);
     setUploadSuccess(false);
 
-    // Compute content hash for deduplication
-    const hash = await hashFile(file);
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_").toLowerCase();
-    const storagePath = `${folder}/${hash}_${safeName}`;
+    const fd = new FormData();
+    fd.set("file", file);
+    fd.set("folder", folder);
+    fd.set("alt", altText);
 
-    // Check if this exact file already exists in this folder
-    const { data: existing } = await supabase
-      .from("media_assets")
-      .select("*")
-      .eq("storage_path", storagePath)
-      .maybeSingle();
+    const result = await adminUploadMedia(fd);
 
-    if (existing) {
-      setUploadError(
-        `This file has already been uploaded as "${existing.filename}". Copy its URL from the library below.`,
-      );
-      setUploading(false);
-      return;
-    }
-
-    const { error: storageErr } = await supabase.storage
-      .from("media")
-      .upload(storagePath, file, { cacheControl: "3600", upsert: false });
-
-    if (storageErr) {
-      setUploadError(storageErr.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("media")
-      .getPublicUrl(storagePath);
-    const publicUrl = urlData.publicUrl;
-
-    const { data: asset, error: dbErr } = await supabase
-      .from("media_assets")
-      .insert({
-        filename: file.name,
-        url: publicUrl,
-        storage_path: storagePath,
-        mime_type: file.type || null,
-        size: file.size,
-        alt: altText || null,
-        folder,
-      })
-      .select("*")
-      .single();
-
-    if (dbErr) {
-      setUploadError(dbErr.message);
-    } else if (asset) {
-      setAssets((prev) => [asset, ...prev]);
+    if (!result.success) {
+      setUploadError(result.error);
+    } else {
+      setAssets((prev) => [result.data as MediaAsset, ...prev]);
       setUploadSuccess(true);
       setAltText("");
       if (fileRef.current) fileRef.current.value = "";
@@ -140,9 +84,12 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
     if (!confirm(`Delete "${asset.filename}"? This cannot be undone.`)) return;
 
     startTransition(async () => {
-      await supabase.storage.from("media").remove([asset.storage_path]);
-      await supabase.from("media_assets").delete().eq("id", asset.id);
-      setAssets((prev) => prev.filter((a) => a.id !== asset.id));
+      const result = await adminDeleteMedia(asset.id, asset.storage_path);
+      if (result.success) {
+        setAssets((prev) => prev.filter((a) => a.id !== asset.id));
+      } else {
+        setUploadError(result.error);
+      }
     });
   }
 
@@ -167,7 +114,7 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
         <h2 className="font-semibold text-foreground text-sm">Upload File</h2>
 
         {uploadSuccess && (
-          <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-3 py-2.5 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-3 py-2.5 rounded-lg">
             <CheckCircle2 className="size-4" /> Uploaded successfully.
           </div>
         )}
@@ -187,7 +134,7 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
               id="folder"
               value={folder}
               onChange={(e) => setFolder(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground"
+              className="flex h-9 w-full rounded-lg border border-input bg-field px-3 py-1 text-sm shadow-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 text-foreground"
             >
               {FOLDERS.map((f) => (
                 <option key={f} value={f}>

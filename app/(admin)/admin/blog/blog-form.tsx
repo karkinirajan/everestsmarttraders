@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 import { slugify } from "@/lib/utils";
 
 interface BlogPostFormProps {
@@ -32,14 +32,10 @@ export function BlogPostForm({ initialData }: BlogPostFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [slug, setSlug] = useState(initialData?.slug ?? "");
   const [slugManual, setSlugManual] = useState(!!initialData);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   function handleTitleChange(val: string) {
     setTitle(val);
@@ -49,6 +45,7 @@ export function BlogPostForm({ initialData }: BlogPostFormProps) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaved(false);
+    setError(null);
     const fd = new FormData(e.currentTarget);
 
     const readingTimeRaw = fd.get("reading_time") as string;
@@ -69,20 +66,22 @@ export function BlogPostForm({ initialData }: BlogPostFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        await supabase
-          .from("blog_posts")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", initialData.id);
-      } else {
-        const { data } = await supabase
-          .from("blog_posts")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (data?.id) {
-          router.push(`/admin/blog/${data.id}`);
+        const result = await adminUpdate("blog_posts", initialData.id, {
+          ...payload,
+          updated_at: new Date().toISOString(),
+        });
+        if (!result.success) {
+          setError(result.error);
           return;
         }
+      } else {
+        const result = await adminInsert<{ id: string }>("blog_posts", payload);
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+        router.push(`/admin/blog/${result.data.id}`);
+        return;
       }
       setSaved(true);
       router.refresh();
@@ -92,9 +91,14 @@ export function BlogPostForm({ initialData }: BlogPostFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" />
           Saved successfully.
+        </div>
+      )}
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+          {error}
         </div>
       )}
 

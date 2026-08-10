@@ -3,26 +3,13 @@ import Image from "next/image";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
 
 async function getAdminProducts() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
+  const supabase = createAdminClient();
 
   const { data } = await supabase
     .from("products")
@@ -100,7 +87,7 @@ export default async function AdminProductsPage() {
                         {product.name}
                       </p>
                       {product.is_featured && (
-                        <span className="text-xs text-amber-500">Featured</span>
+                        <span className="text-xs text-est-amber">Featured</span>
                       )}
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
@@ -115,7 +102,7 @@ export default async function AdminProductsPage() {
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           product.is_published
-                            ? "bg-green-500/15 text-green-600"
+                            ? "bg-success-muted text-success"
                             : "bg-muted text-muted-foreground"
                         }`}
                       >

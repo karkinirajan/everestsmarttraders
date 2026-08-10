@@ -1,19 +1,13 @@
 import Link from "next/link";
 import { Plus, Pencil, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
 
 async function getTestimonials() {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("testimonials")
     .select("id, client_name, client_company, content, rating, is_featured, is_published, created_at")
@@ -78,12 +72,12 @@ export default async function TestimonialsPage() {
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${
-                          t.is_published ? "bg-green-500/15 text-green-600" : "bg-muted text-muted-foreground"
+                          t.is_published ? "bg-success-muted text-success" : "bg-muted text-muted-foreground"
                         }`}>
                           {t.is_published ? "Published" : "Hidden"}
                         </span>
                         {t.is_featured && (
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium w-fit bg-amber-500/15 text-amber-600">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium w-fit bg-est-amber-muted text-est-amber">
                             Featured
                           </span>
                         )}

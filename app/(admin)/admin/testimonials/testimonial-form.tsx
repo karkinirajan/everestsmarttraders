@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { createBrowserClient } from "@supabase/ssr";
+import { adminInsert, adminUpdate } from "@/lib/actions/admin-mutate";
 
 interface TestimonialFormProps {
   initialData?: {
@@ -30,11 +30,6 @@ export function TestimonialForm({ initialData }: TestimonialFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [rating, setRating] = useState(initialData?.rating ?? 5);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaved(false);
@@ -53,27 +48,20 @@ export function TestimonialForm({ initialData }: TestimonialFormProps) {
 
     startTransition(async () => {
       if (initialData?.id) {
-        const { error: err } = await supabase
-          .from("testimonials")
-          .update(payload)
-          .eq("id", initialData.id);
-        if (err) {
-          setError(err.message);
+        const result = await adminUpdate("testimonials", initialData.id, payload);
+        if (!result.success) {
+          setError(result.error);
           return;
         }
         setSaved(true);
         router.refresh();
       } else {
-        const { data, error: err } = await supabase
-          .from("testimonials")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (err) {
-          setError(err.message);
+        const result = await adminInsert<{ id: string }>("testimonials", payload);
+        if (!result.success) {
+          setError(result.error);
           return;
         }
-        if (data?.id) router.push(`/admin/testimonials/${data.id}`);
+        router.push(`/admin/testimonials/${result.data.id}`);
       }
     });
   }
@@ -81,7 +69,7 @@ export function TestimonialForm({ initialData }: TestimonialFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg">
           <CheckCircle2 className="size-4" /> Saved successfully.
         </div>
       )}

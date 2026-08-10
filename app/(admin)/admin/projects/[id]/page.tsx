@@ -2,22 +2,24 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProjectForm } from "../project-form";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
 interface Props { params: Promise<{ id: string }> }
 
+async function getData(id: string) {
+  await connection();
+  const admin = createAdminClient();
+  const [projectRes, industriesRes] = await Promise.all([
+    admin.from("projects").select("*").eq("id", id).single(),
+    admin.from("industries").select("id, name").order("position").order("name"),
+  ]);
+  return { project: projectRes.data, industries: industriesRes.data ?? [] };
+}
+
 export default async function EditProjectPage({ params }: Props) {
   const { id } = await params;
-  await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
-  );
-  const { data: project } = await supabase.from("projects").select("*").eq("id", id).single();
+  const { project, industries } = await getData(id);
   if (!project) notFound();
 
   return (
@@ -36,13 +38,15 @@ export default async function EditProjectPage({ params }: Props) {
           View on site →
         </Link>
       </div>
-      <ProjectForm initialData={{
+      <ProjectForm industries={industries} initialData={{
         id: project.id, title: project.title, slug: project.slug,
-        summary: project.summary, description: project.description,
-        location: project.location, client_name: project.client_name,
+        location: project.location, industry_id: project.industry_id,
+        summary: project.summary, challenge: project.challenge,
+        solution: project.solution, result: project.result,
         cover_image_url: project.cover_image_url,
         is_published: project.is_published, is_featured: project.is_featured,
         completed_at: project.completed_at,
+        seo_title: project.seo_title, seo_description: project.seo_description,
       }} />
     </div>
   );

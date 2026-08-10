@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Phone, Mail, MapPin, Calendar, User } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
+import { INQUIRY_STATUS_LABELS, INQUIRY_STATUS_STYLES } from "@/lib/constants";
 import { InquiryActions } from "../inquiry-actions";
 
 interface Props {
@@ -15,19 +14,7 @@ interface Props {
 
 async function getInquiry(id: string) {
   await connection();
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
+  const supabase = createAdminClient();
 
   const { data } = await supabase
     .from("inquiries")
@@ -38,25 +25,14 @@ async function getInquiry(id: string) {
   return data ?? null;
 }
 
-const statusVariants: Record<string, { label: string; class: string }> = {
-  new: { label: "New", class: "bg-blue-500/15 text-blue-600" },
-  contacted: { label: "Contacted", class: "bg-yellow-500/15 text-yellow-600" },
-  quoted: { label: "Quoted", class: "bg-purple-500/15 text-purple-600" },
-  closed: { label: "Closed", class: "bg-green-500/15 text-green-600" },
-  spam: { label: "Spam", class: "bg-red-500/15 text-red-600" },
-};
-
 export default async function InquiryDetailPage({ params }: Props) {
   const { id } = await params;
   const inquiry = await getInquiry(id);
 
   if (!inquiry) notFound();
 
-  const status =
-    statusVariants[inquiry.status] ?? {
-      label: inquiry.status,
-      class: "bg-muted text-muted-foreground",
-    };
+  const statusLabel = INQUIRY_STATUS_LABELS[inquiry.status] ?? inquiry.status;
+  const statusClass = INQUIRY_STATUS_STYLES[inquiry.status] ?? "bg-muted text-muted-foreground";
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -75,9 +51,9 @@ export default async function InquiryDetailPage({ params }: Props) {
           </h1>
           <div className="flex items-center gap-3 mt-1.5">
             <span
-              className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${status.class}`}
+              className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${statusClass}`}
             >
-              {status.label}
+              {statusLabel}
             </span>
             <span className="text-xs text-muted-foreground capitalize">
               {inquiry.inquiry_type} inquiry
