@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 
@@ -14,6 +15,10 @@ import { createAdminClient } from "@/lib/supabase/admin-client";
  *
  * Tables are allow-listed so this can't be pointed at arbitrary tables
  * (e.g. profiles, auth-adjacent tables) from the client.
+ *
+ * Public pages are statically rendered with no time-based revalidation, so
+ * every successful write also busts the root layout's cache — otherwise
+ * admin edits would only appear on the site after the next deploy.
  */
 const MUTABLE_TABLES = new Set([
   "products",
@@ -80,6 +85,7 @@ export async function adminInsert<T = Record<string, unknown>>(
     .single();
 
   if (error) return { success: false, error: error.message };
+  revalidatePath("/", "layout");
   return { success: true, data: data as T };
 }
 
@@ -103,6 +109,7 @@ export async function adminUpdate<T = Record<string, unknown>>(
     .single();
 
   if (error) return { success: false, error: error.message };
+  revalidatePath("/", "layout");
   return { success: true, data: data as T };
 }
 
@@ -125,6 +132,7 @@ export async function adminUpsert<T = Record<string, unknown>>(
     .single();
 
   if (error) return { success: false, error: error.message };
+  revalidatePath("/", "layout");
   return { success: true, data: data as T };
 }
 
@@ -142,5 +150,6 @@ export async function adminDelete(
   const { error } = await admin.from(table).delete().eq("id", id);
 
   if (error) return { success: false, error: error.message };
+  revalidatePath("/", "layout");
   return { success: true, data: null };
 }
