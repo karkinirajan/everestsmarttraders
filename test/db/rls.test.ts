@@ -168,10 +168,82 @@ describe("migration 005: the rate limiter", () => {
   });
 });
 
+describe("migration 006: keepalive heartbeat", () => {
+  let db: PGlite;
+  let viewer: string;
+  beforeAll(async () => {
+    db = await freshDatabase();
+    viewer = await signUp(db, "hb@example.com");
+  });
+  afterAll(() => db.close());
+
+  const beat = (source = "cron") =>
+    db.query<{
+      hb: {
+        ok: boolean;
+        day: string;
+        beat_count: number;
+        recorded_at: string;
+        source: string;
+      };
+    }>("select public.record_heartbeat($1) as hb", [source]);
+
+  it("upserts today's heartbeat row and increments beat_count on repeated calls", async () => {
+    const first = await as(db, { role: "service_role" }, () => beat("vercel-cron"));
+    expect(Number(first.rows[0]?.hb.beat_count)).toBe(1);
+    expect(first.rows[0]?.hb.source).toBe("vercel-cron");
+
+    const second = await as(db, { role: "service_role" }, () => beat("github-actions"));
+    expect(Number(second.rows[0]?.hb.beat_count)).toBe(2);
+    expect(second.rows[0]?.hb.source).toBe("github-actions");
+  });
+
+  it("prunes heartbeats older than 30 days and expired rate_limits rows", async () => {
+    await db.exec(`
+      insert into public.system_heartbeats (day, beat_count, last_source)
+      values (current_date - 35, 3, 'old-cron');
+      insert into public.rate_limits (key, window_start, count)
+      values ('expired-rl', now() - interval '2 days', 2);
+    `);
+
+    await as(db, { role: "service_role" }, () => beat("cleanup-check"));
+    const oldHb = await db.query(
+      "select day from public.system_heartbeats where day < current_date - 30",
+    );
+    const oldRl = await db.query(
+      "select key from public.rate_limits where key = 'expired-rl'",
+    );
+    expect(oldHb.rows.length).toBe(0);
+    expect(oldRl.rows.length).toBe(0);
+  });
+
+  it("is not callable or readable by anon or authenticated users", async () => {
+    await expect(as(db, { role: "anon" }, () => beat("anon"))).rejects.toThrow(/permission denied/);
+    await expect(
+      as(db, { role: "authenticated", userId: viewer }, () => beat("viewer")),
+    ).rejects.toThrow(/permission denied/);
+    expect(
+      (await as(db, { role: "anon" }, () => db.query("select * from public.system_heartbeats")))
+        .rows.length,
+    ).toBe(0);
+    expect(
+      (
+        await as(db, { role: "authenticated", userId: viewer }, () =>
+          db.query("select * from public.system_heartbeats"),
+        )
+      ).rows.length,
+    ).toBe(0);
+  });
+});
+
 describe("the migration files", () => {
-  it("004 and 005 can be applied twice", async () => {
+  it("004, 005, and 006 can be applied twice", async () => {
     const db = await freshDatabase();
-    for (const file of ["004_lock_profile_roles_and_inquiries.sql", "005_rate_limits.sql"]) {
+    for (const file of [
+      "004_lock_profile_roles_and_inquiries.sql",
+      "005_rate_limits.sql",
+      "006_keepalive_heartbeat.sql",
+    ]) {
       await db.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
     }
     const id = await signUp(db, "again@example.com");

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafeCmsUrl } from "@/lib/safe-redirect";
 
 /**
  * The rules the admin server actions apply before they touch the database with the service-role key (which bypasses RLS):
@@ -39,6 +40,18 @@ export const PROTECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   media_assets: ["storage_path", "url", "mime_type", "size", "folder"],
 };
 
+/** Columns that hold links or media URLs: must be http(s) or a root-relative path, never javascript:/data:. */
+export const URL_COLUMNS: ReadonlySet<string> = new Set([
+  "cover_image_url",
+  "image_url",
+  "video_url",
+  "brochure_url",
+  "og_image",
+  "canonical",
+  "canonical_url",
+  "link",
+]);
+
 /** Set by the database, never by the browser. */
 const SERVER_MANAGED = ["id", "created_at", "updated_at"] as const;
 
@@ -77,6 +90,9 @@ export function cleanPayload(payload: unknown, keep: readonly string[] = [], tab
     if (key === "__proto__") continue;
     if (protectedColumns.includes(key)) continue;
     if ((SERVER_MANAGED as readonly string[]).includes(key) && !keep.includes(key)) continue;
+    if (URL_COLUMNS.has(key) && !isSafeCmsUrl(v)) {
+      return { ok: false, error: `Invalid URL in "${key}". Use an https:// URL or a /path.` };
+    }
     value[key] = v;
   }
   return { ok: true, value };

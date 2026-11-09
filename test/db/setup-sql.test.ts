@@ -14,6 +14,9 @@ describe("supabase/setup.sql", () => {
     const id = await signUp(db, "someone@example.com");
     await expect(as(db, { role: "authenticated", userId: id }, () => db.query("update public.profiles set role = 'admin' where id = $1", [id]))).rejects.toThrow(/Only an admin/);
     await expect(as(db, { role: "anon" }, () => db.query("select public.rate_limit_hit('k', 60)"))).rejects.toThrow(/permission denied/);
+    await expect(as(db, { role: "anon" }, () => db.query("select public.record_heartbeat('anon')"))).rejects.toThrow(/permission denied/);
+    const hb = await as(db, { role: "service_role" }, () => db.query<{ hb: { beat_count: number } }>("select public.record_heartbeat('setup-test') as hb"));
+    expect(Number(hb.rows[0]?.hb.beat_count)).toBe(1);
     await db.close();
   });
 });

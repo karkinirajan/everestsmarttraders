@@ -24,6 +24,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-muted: var(--destructive-muted);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -81,12 +82,13 @@
   --secondary-foreground: oklch(0.26 0.095 249);
 
   --muted: oklch(0.95 0 0);
-  --muted-foreground: oklch(0.52 0.015 255);
+  --muted-foreground: oklch(0.5 0.015 255);
 
   --accent: oklch(0.93 0.02 249);
   --accent-foreground: oklch(0.26 0.095 249);
 
-  --destructive: oklch(0.55 0.2 25);
+  --destructive: oklch(0.47 0.19 25);
+  --destructive-muted: oklch(0.94 0.04 25);
   --border: oklch(0.88 0.01 255);
   --input: oklch(0.88 0.01 255);
   --ring: oklch(0.26 0.095 249);
@@ -95,17 +97,17 @@
   /* Form field well — distinct from --card so inputs read as writable
      surfaces rather than flat panels. */
   --field: oklch(1 0 0);
-  --placeholder: oklch(0.58 0.015 255);
+  --placeholder: oklch(0.51 0.015 255);
 
   /* Status tokens — foreground + muted backing surface, each pair kept
      above 4.5:1 contrast. */
-  --success: oklch(0.45 0.14 152);
+  --success: oklch(0.42 0.14 152);
   --success-muted: oklch(0.94 0.05 152);
-  --warning: oklch(0.5 0.15 75);
+  --warning: oklch(0.45 0.14 75);
   --warning-muted: oklch(0.94 0.07 75);
-  --info: oklch(0.48 0.16 255);
+  --info: oklch(0.44 0.16 255);
   --info-muted: oklch(0.94 0.04 255);
-  --violet: oklch(0.5 0.18 305);
+  --violet: oklch(0.45 0.18 305);
   --violet-muted: oklch(0.94 0.05 305);
 
   color-scheme: light;
@@ -139,45 +141,46 @@
   --secondary-foreground: oklch(0.96 0 0);
 
   --muted: oklch(0.22 0.02 255);
-  --muted-foreground: oklch(0.64 0.02 255);
+  --muted-foreground: oklch(0.74 0.018 255);
 
   --accent: oklch(0.22 0.025 249);
   --accent-foreground: oklch(0.96 0 0);
 
-  --destructive: oklch(0.65 0.22 25);
+  --destructive: oklch(0.76 0.17 25);
+  --destructive-muted: oklch(0.26 0.06 25);
   --border: oklch(0.26 0.02 255);
   /* Field border — brighter than --border so form controls read as
      distinct, clickable wells against the card behind them. */
-  --input: oklch(0.34 0.02 255);
-  --ring: oklch(0.55 0.12 249);
+  --input: oklch(0.36 0.02 255);
+  --ring: oklch(0.68 0.13 245);
 
   /* Form field well — lighter than --card (0.16) so every input, textarea,
      and select visibly separates from the surface it sits on instead of
      disappearing into a flat black panel. */
   --field: oklch(0.225 0.02 255);
-  --placeholder: oklch(0.62 0.02 255);
+  --placeholder: oklch(0.68 0.02 255);
 
   /* Status tokens — bright foreground on a dark tinted backing, tuned for
      dark surfaces (the light-mode green-50/amber-50 pairing is unreadable
      here). */
-  --success: oklch(0.78 0.16 152);
-  --success-muted: oklch(0.28 0.06 152);
-  --warning: oklch(0.8 0.15 75);
-  --warning-muted: oklch(0.29 0.06 75);
-  --info: oklch(0.74 0.13 235);
-  --info-muted: oklch(0.27 0.05 235);
-  --violet: oklch(0.76 0.15 305);
-  --violet-muted: oklch(0.28 0.06 305);
+  --success: oklch(0.8 0.15 152);
+  --success-muted: oklch(0.26 0.06 152);
+  --warning: oklch(0.82 0.15 75);
+  --warning-muted: oklch(0.26 0.06 75);
+  --info: oklch(0.78 0.13 235);
+  --info-muted: oklch(0.26 0.05 235);
+  --violet: oklch(0.8 0.14 305);
+  --violet-muted: oklch(0.26 0.06 305);
 
   color-scheme: dark;
 
-  --brand: oklch(0.55 0.12 249);
-  --brand-foreground: oklch(0.985 0 0);
-  --brand-muted: oklch(0.22 0.04 249);
+  --brand: oklch(0.76 0.13 245);
+  --brand-foreground: oklch(0.13 0.02 255);
+  --brand-muted: oklch(0.24 0.045 249);
 
-  --est-amber: oklch(0.75 0.18 56);
+  --est-amber: oklch(0.8 0.17 65);
   --est-amber-foreground: oklch(0.12 0 0);
-  --est-amber-muted: oklch(0.22 0.05 65);
+  --est-amber-muted: oklch(0.25 0.05 65);
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────── */
@@ -222,6 +225,12 @@ html {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Native select option contrast in dark mode */
+select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {

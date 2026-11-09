@@ -19,7 +19,8 @@
     "backfill:images": "node scripts/backfill-admin-images.mjs",
     "db:seed": "node scripts/seed-db.mjs",
     "db:reset-seed": "node scripts/seed-db.mjs --reset",
-    "db:build-setup": "node scripts/build-setup-sql.mjs"
+    "db:build-setup": "node scripts/build-setup-sql.mjs",
+    "db:keepalive": "node scripts/keepalive.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

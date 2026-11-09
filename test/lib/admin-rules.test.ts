@@ -7,6 +7,7 @@ describe("checkTable", () => {
   it("never lets the people table or the counters be written from the dashboard", () => {
     expect(MUTABLE_TABLES.has("profiles")).toBe(false);
     expect(MUTABLE_TABLES.has("rate_limits")).toBe(false);
+    expect(MUTABLE_TABLES.has("system_heartbeats")).toBe(false);
   });
   it("does not echo an over-long name", () => expect(checkTable("x".repeat(500))?.length).toBeLessThan(80));
 });
@@ -63,6 +64,30 @@ describe("cleanPayload", () => {
   it("refuses an oversized payload and accepts one just under the limit", () => {
     expect(cleanPayload({ body: "x".repeat(MAX_PAYLOAD_BYTES) }).ok).toBe(false);
     expect(cleanPayload({ body: "x".repeat(MAX_PAYLOAD_BYTES - 100) }).ok).toBe(true);
+  });
+  it("validates URL columns against javascript:, data:, and protocol-relative URLs", () => {
+    expect(
+      cleanPayload({ cover_image_url: "https://cdn.example.com/gate.jpg", link: "/contact" }),
+    ).toEqual({
+      ok: true,
+      value: { cover_image_url: "https://cdn.example.com/gate.jpg", link: "/contact" },
+    });
+    expect(cleanPayload({ cover_image_url: "javascript:alert(1)" })).toEqual({
+      ok: false,
+      error: 'Invalid URL in "cover_image_url". Use an https:// URL or a /path.',
+    });
+    expect(cleanPayload({ video_url: "data:text/html,<script>alert(1)</script>" })).toEqual({
+      ok: false,
+      error: 'Invalid URL in "video_url". Use an https:// URL or a /path.',
+    });
+    expect(cleanPayload({ link: "//evil.example.com/phish" })).toEqual({
+      ok: false,
+      error: 'Invalid URL in "link". Use an https:// URL or a /path.',
+    });
+    expect(cleanPayload({ og_image: 123 })).toEqual({
+      ok: false,
+      error: 'Invalid URL in "og_image". Use an https:// URL or a /path.',
+    });
   });
 });
 

@@ -1,7 +1,11 @@
 /**
  * Supabase data-fetching functions for the public site.
  * These functions are server-only and avoid request-bound APIs like cookies/headers.
+ * Per-request deduplication via React `cache()` ensures `PublicLayout`, `generateMetadata`,
+ * and page components never issue duplicate database queries within the same render pass.
  */
+import { cache } from "react";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   Product,
   ProductCategory,
@@ -12,7 +16,6 @@ import type {
   Testimonial,
   FAQ,
   HomepageSection,
-  SiteSetting,
   SiteSettingsMap,
   Announcement,
 } from "@/types";
@@ -26,126 +29,141 @@ type SitemapProduct = {
 type SitemapProject = { slug: string; updated_at: string };
 type SitemapBlogPost = { slug: string; updated_at: string | null };
 
-// ── Client factory (lazy — avoids build-time errors if env not set) ───────
-function getSupabaseUrl() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-  }
-  return process.env.NEXT_PUBLIC_SUPABASE_URL;
-}
+// ── Client factory (lazy singleton — avoids build-time errors if env not set) ───────
+let cachedClient: SupabaseClient | null = null;
+let cachedKeyPair = "";
 
-function getSupabaseKey() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is not set");
+function getClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!url || !key) {
+    return null;
   }
-  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-}
-
-async function getClient() {
-  const { createClient } = await import("@supabase/supabase-js");
-  return createClient(getSupabaseUrl(), getSupabaseKey());
+  const pair = `${url}::${key}`;
+  if (!cachedClient || cachedKeyPair !== pair) {
+    cachedClient = createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    cachedKeyPair = pair;
+  }
+  return cachedClient;
 }
 
 // ── Site Settings ─────────────────────────────────────────────────────────
-export async function getSiteSettings(): Promise<Partial<SiteSettingsMap>> {
+export const getSiteSettings = cache(
+  async (): Promise<Partial<SiteSettingsMap>> => {
+    const supabase = getClient();
+    if (!supabase) return {};
+    const { data } = await supabase.from("site_settings").select("key, value");
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("site_settings")
-    .select("key, value");
+    if (!data) return {};
 
-  if (!data) return {};
-
-  return Object.fromEntries(
-    data.map((row: { key: string; value: unknown }) => [row.key, row.value])
-  ) as Partial<SiteSettingsMap>;
-}
+    return Object.fromEntries(
+      data.map((row: { key: string; value: unknown }) => [row.key, row.value]),
+    ) as Partial<SiteSettingsMap>;
+  },
+);
 
 // ── Homepage Sections ─────────────────────────────────────────────────────
-export async function getHomepageSections(): Promise<HomepageSection[]> {
+export const getHomepageSections = cache(
+  async (): Promise<HomepageSection[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("homepage_sections")
+      .select("*")
+      .eq("is_visible", true)
+      .order("position");
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("homepage_sections")
-    .select("*")
-    .eq("is_visible", true)
-    .order("position");
-
-  return (data as HomepageSection[]) ?? [];
-}
+    return (data as HomepageSection[]) ?? [];
+  },
+);
 
 // ── Product Categories ────────────────────────────────────────────────────
-export async function getProductCategories(): Promise<ProductCategory[]> {
+export const getProductCategories = cache(
+  async (): Promise<ProductCategory[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("product_categories")
+      .select("*")
+      .eq("is_active", true)
+      .order("position");
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("product_categories")
-    .select("*")
-    .eq("is_active", true)
-    .order("position");
+    return (data as ProductCategory[]) ?? [];
+  },
+);
 
-  return (data as ProductCategory[]) ?? [];
-}
+export const getProductCategoryBySlug = cache(
+  async (slug: string): Promise<ProductCategory | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("product_categories")
+      .select("*")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
 
-export async function getProductCategoryBySlug(slug: string): Promise<ProductCategory | null> {
-
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("product_categories")
-    .select("*")
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .single();
-
-  return (data as ProductCategory | null) ?? null;
-}
+    return (data as ProductCategory | null) ?? null;
+  },
+);
 
 // ── Products ──────────────────────────────────────────────────────────────
-export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
+export const getFeaturedProducts = cache(
+  async (limit = 8): Promise<Product[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("products")
+      .select(`*, category:product_categories(*), images:product_images(*)`)
+      .eq("is_published", true)
+      .eq("is_active", true)
+      .eq("is_featured", true)
+      .order("position")
+      .limit(limit);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("products")
-    .select(`*, category:product_categories(*), images:product_images(*)`)
-    .eq("is_published", true)
-    .eq("is_active", true)
-    .eq("is_featured", true)
-    .order("position")
-    .limit(limit);
+    return (data as Product[]) ?? [];
+  },
+);
 
-  return (data as Product[]) ?? [];
-}
+export const getProductsByCategory = cache(
+  async (categorySlug: string): Promise<Product[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("products")
+      .select(`*, category:product_categories!inner(*), images:product_images(*)`)
+      .eq("product_categories.slug", categorySlug)
+      .eq("is_published", true)
+      .eq("is_active", true)
+      .order("position");
 
-export async function getProductsByCategory(categorySlug: string): Promise<Product[]> {
+    return (data as Product[]) ?? [];
+  },
+);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("products")
-    .select(`*, category:product_categories!inner(*), images:product_images(*)`)
-    .eq("product_categories.slug", categorySlug)
-    .eq("is_published", true)
-    .eq("is_active", true)
-    .order("position");
+export const getProductBySlug = cache(
+  async (slug: string): Promise<Product | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("products")
+      .select(`*, category:product_categories(*), images:product_images(*)`)
+      .eq("slug", slug)
+      .eq("is_published", true)
+      .maybeSingle();
 
-  return (data as Product[]) ?? [];
-}
-
-export async function getProductBySlug(slug: string): Promise<Product | null> {
-
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("products")
-    .select(`*, category:product_categories(*), images:product_images(*)`)
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
-
-  return (data as Product | null) ?? null;
-}
+    return (data as Product | null) ?? null;
+  },
+);
 
 export async function getAllPublishedProductSlugs(): Promise<string[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("products")
     .select("slug")
@@ -156,8 +174,8 @@ export async function getAllPublishedProductSlugs(): Promise<string[]> {
 }
 
 export async function getAllPublishedProjectSlugs(): Promise<string[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("projects")
     .select("slug")
@@ -167,8 +185,8 @@ export async function getAllPublishedProjectSlugs(): Promise<string[]> {
 }
 
 export async function getAllPublishedBlogSlugs(): Promise<string[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("blog_posts")
     .select("slug")
@@ -177,22 +195,24 @@ export async function getAllPublishedBlogSlugs(): Promise<string[]> {
   return (data ?? []).map((p: { slug: string }) => p.slug);
 }
 
-export async function getAllPublishedProjects(limit = 50): Promise<Project[]> {
+export const getAllPublishedProjects = cache(
+  async (limit = 50): Promise<Project[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("projects")
+      .select(`*, industry:industries(*), images:project_images(*)`)
+      .eq("is_published", true)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("projects")
-    .select(`*, industry:industries(*), images:project_images(*)`)
-    .eq("is_published", true)
-    .order("completed_at", { ascending: false })
-    .limit(limit);
-
-  return (data as Project[]) ?? [];
-}
+    return (data as Project[]) ?? [];
+  },
+);
 
 export async function getSitemapProducts(): Promise<SitemapProduct[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("products")
     .select("slug, updated_at, category:product_categories(slug)")
@@ -203,9 +223,9 @@ export async function getSitemapProducts(): Promise<SitemapProduct[]> {
 }
 
 // ── Services ──────────────────────────────────────────────────────────────
-export async function getServices(): Promise<Service[]> {
-
-  const supabase = await getClient();
+export const getServices = cache(async (): Promise<Service[]> => {
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("services")
     .select("*")
@@ -214,25 +234,27 @@ export async function getServices(): Promise<Service[]> {
     .order("position");
 
   return (data as Service[]) ?? [];
-}
+});
 
-export async function getServiceBySlug(slug: string): Promise<Service | null> {
+export const getServiceBySlug = cache(
+  async (slug: string): Promise<Service | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("services")
+      .select("*")
+      .eq("slug", slug)
+      .eq("is_published", true)
+      .maybeSingle();
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("services")
-    .select("*")
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
-
-  return (data as Service | null) ?? null;
-}
+    return (data as Service | null) ?? null;
+  },
+);
 
 // ── Industries ────────────────────────────────────────────────────────────
-export async function getIndustries(): Promise<Industry[]> {
-
-  const supabase = await getClient();
+export const getIndustries = cache(async (): Promise<Industry[]> => {
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("industries")
     .select("*")
@@ -240,39 +262,43 @@ export async function getIndustries(): Promise<Industry[]> {
     .order("position");
 
   return (data as Industry[]) ?? [];
-}
+});
 
-export async function getIndustryBySlug(slug: string): Promise<Industry | null> {
+export const getIndustryBySlug = cache(
+  async (slug: string): Promise<Industry | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("industries")
+      .select("*")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("industries")
-    .select("*")
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .single();
-
-  return (data as Industry | null) ?? null;
-}
+    return (data as Industry | null) ?? null;
+  },
+);
 
 // ── Projects ──────────────────────────────────────────────────────────────
-export async function getFeaturedProjects(limit = 6): Promise<Project[]> {
+export const getFeaturedProjects = cache(
+  async (limit = 6): Promise<Project[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("projects")
+      .select(`*, industry:industries(*), images:project_images(*)`)
+      .eq("is_published", true)
+      .eq("is_featured", true)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("projects")
-    .select(`*, industry:industries(*), images:project_images(*)`)
-    .eq("is_published", true)
-    .eq("is_featured", true)
-    .order("completed_at", { ascending: false })
-    .limit(limit);
-
-  return (data as Project[]) ?? [];
-}
+    return (data as Project[]) ?? [];
+  },
+);
 
 export async function getSitemapProjects(): Promise<SitemapProject[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("projects")
     .select("slug, updated_at")
@@ -281,41 +307,45 @@ export async function getSitemapProjects(): Promise<SitemapProject[]> {
   return (data as SitemapProject[]) ?? [];
 }
 
-export async function getProjectBySlug(slug: string): Promise<Project | null> {
+export const getProjectBySlug = cache(
+  async (slug: string): Promise<Project | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("projects")
+      .select(`
+        *,
+        industry:industries(*),
+        images:project_images(*),
+        project_products(product_id)
+      `)
+      .eq("slug", slug)
+      .eq("is_published", true)
+      .maybeSingle();
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("projects")
-    .select(`
-      *,
-      industry:industries(*),
-      images:project_images(*),
-      project_products(product_id)
-    `)
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
-
-  return (data as Project | null) ?? null;
-}
+    return (data as Project | null) ?? null;
+  },
+);
 
 // ── Blog Posts ────────────────────────────────────────────────────────────
-export async function getFeaturedBlogPosts(limit = 3): Promise<BlogPost[]> {
+export const getFeaturedBlogPosts = cache(
+  async (limit = 3): Promise<BlogPost[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("blog_posts")
+      .select(`*, category:blog_categories(*)`)
+      .eq("is_published", true)
+      .order("published_at", { ascending: false })
+      .limit(limit);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("blog_posts")
-    .select(`*, category:blog_categories(*)`)
-    .eq("is_published", true)
-    .order("published_at", { ascending: false })
-    .limit(limit);
-
-  return (data as BlogPost[]) ?? [];
-}
+    return (data as BlogPost[]) ?? [];
+  },
+);
 
 export async function getSitemapBlogPosts(): Promise<SitemapBlogPost[]> {
-
-  const supabase = await getClient();
+  const supabase = getClient();
+  if (!supabase) return [];
   const { data } = await supabase
     .from("blog_posts")
     .select("slug, updated_at")
@@ -324,37 +354,41 @@ export async function getSitemapBlogPosts(): Promise<SitemapBlogPost[]> {
   return (data as SitemapBlogPost[]) ?? [];
 }
 
-export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+export const getBlogPostBySlug = cache(
+  async (slug: string): Promise<BlogPost | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("blog_posts")
+      .select(`*, category:blog_categories(*)`)
+      .eq("slug", slug)
+      .eq("is_published", true)
+      .maybeSingle();
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("blog_posts")
-    .select(`*, category:blog_categories(*)`)
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
-
-  return (data as BlogPost | null) ?? null;
-}
+    return (data as BlogPost | null) ?? null;
+  },
+);
 
 // ── Testimonials ──────────────────────────────────────────────────────────
-export async function getFeaturedTestimonials(limit = 6): Promise<Testimonial[]> {
+export const getFeaturedTestimonials = cache(
+  async (limit = 6): Promise<Testimonial[]> => {
+    const supabase = getClient();
+    if (!supabase) return [];
+    const { data } = await supabase
+      .from("testimonials")
+      .select("*")
+      .eq("is_published", true)
+      .eq("is_featured", true)
+      .limit(limit);
 
-  const supabase = await getClient();
-  const { data } = await supabase
-    .from("testimonials")
-    .select("*")
-    .eq("is_published", true)
-    .eq("is_featured", true)
-    .limit(limit);
-
-  return (data as Testimonial[]) ?? [];
-}
+    return (data as Testimonial[]) ?? [];
+  },
+);
 
 // ── FAQs ──────────────────────────────────────────────────────────────────
-export async function getFAQs(category?: string): Promise<FAQ[]> {
-
-  const supabase = await getClient();
+export const getFAQs = cache(async (category?: string): Promise<FAQ[]> => {
+  const supabase = getClient();
+  if (!supabase) return [];
   let query = supabase
     .from("faqs")
     .select("*")
@@ -367,21 +401,26 @@ export async function getFAQs(category?: string): Promise<FAQ[]> {
 
   const { data } = await query;
   return (data as FAQ[]) ?? [];
-}
+});
 
 // ── Announcements ─────────────────────────────────────────────────────────
-export async function getActiveAnnouncement(): Promise<Announcement | null> {
+export const getActiveAnnouncement = cache(
+  async (): Promise<Announcement | null> => {
+    const supabase = getClient();
+    if (!supabase) return null;
+    const nowMs = Date.now();
+    const { data } = await supabase
+      .from("announcements")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
 
-  const supabase = await getClient();
-  const now = new Date().toISOString();
-  const { data } = await supabase
-    .from("announcements")
-    .select("*")
-    .eq("is_active", true)
-    .or(`starts_at.is.null,starts_at.lte.${now}`)
-    .or(`ends_at.is.null,ends_at.gte.${now}`)
-    .limit(1)
-    .single();
-
-  return (data as Announcement | null) ?? null;
-}
+    const rows = (data as Announcement[] | null) ?? [];
+    const active = rows.find((item) => {
+      const startsOk = !item.starts_at || Date.parse(item.starts_at) <= nowMs;
+      const endsOk = !item.ends_at || Date.parse(item.ends_at) >= nowMs;
+      return startsOk && endsOk;
+    });
+    return active ?? null;
+  },
+);

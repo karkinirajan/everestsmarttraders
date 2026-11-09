@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "../product-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -31,7 +32,16 @@ export default async function EditProductPage({ params }: Props) {
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-foreground font-medium line-clamp-1">{product.name}</span>
       </div>
-      <h1 className="text-2xl font-bold text-foreground">Edit Product</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-foreground">Edit Product</h1>
+        <DeleteItemButton
+          table="products"
+          id={product.id}
+          label={product.name}
+          redirectTo="/admin/products"
+          size="sm"
+        />
+      </div>
       <ProductForm categories={categories} initialData={{
         id: product.id,
         name: product.name,

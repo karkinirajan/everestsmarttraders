@@ -1,9 +1,19 @@
 import Link from "next/link";
-import { ArrowRight, Phone, Mail } from "lucide-react";
+import { Eye, Phone, Mail } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
 import { INQUIRY_STATUS_LABELS, INQUIRY_STATUS_STYLES } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { InquiryActions } from "./inquiry-actions";
 
 async function getInquiries() {
@@ -26,7 +36,7 @@ export default async function InquiriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Inquiries</h1>
           <p className="text-muted-foreground mt-0.5">
@@ -41,80 +51,123 @@ export default async function InquiriesPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Contact
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">
-                  Subject
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">
-                  Type
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Status
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">
-                  Date
-                </th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {inquiries.length > 0 ? (
-                inquiries.map((inquiry) => {
-                  const statusLabel = INQUIRY_STATUS_LABELS[inquiry.status] ?? inquiry.status;
-                  const statusClass = INQUIRY_STATUS_STYLES[inquiry.status] ?? "bg-muted text-muted-foreground";
-                  return (
-                    <tr key={inquiry.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <p className="font-medium text-foreground">{inquiry.full_name}</p>
-                        <div className="flex flex-wrap gap-2 mt-0.5">
-                          <a href={`tel:${inquiry.phone}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-brand transition-colors">
-                            <Phone className="size-3" /> {inquiry.phone}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contact</TableHead>
+              <TableHead className="hidden sm:table-cell">Subject</TableHead>
+              <TableHead className="hidden md:table-cell">Type</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="hidden lg:table-cell">Date</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {inquiries.length > 0 ? (
+              inquiries.map((inquiry) => {
+                const statusLabel =
+                  INQUIRY_STATUS_LABELS[inquiry.status] ?? inquiry.status;
+                const statusClass =
+                  INQUIRY_STATUS_STYLES[inquiry.status] ??
+                  "bg-muted text-muted-foreground";
+                return (
+                  <TableRow key={inquiry.id}>
+                    <TableCell>
+                      <Link
+                        href={`/admin/inquiries/${inquiry.id}`}
+                        className="font-medium text-foreground hover:text-brand transition-colors block"
+                      >
+                        {inquiry.full_name}
+                      </Link>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                        <a
+                          href={`tel:${inquiry.phone}`}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-brand transition-colors"
+                        >
+                          <Phone className="size-3 shrink-0" /> {inquiry.phone}
+                        </a>
+                        {inquiry.email && (
+                          <a
+                            href={`mailto:${inquiry.email}`}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-brand transition-colors break-all"
+                          >
+                            <Mail className="size-3 shrink-0" /> {inquiry.email}
                           </a>
-                          {inquiry.email && (
-                            <a href={`mailto:${inquiry.email}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-brand transition-colors">
-                              <Mail className="size-3" /> {inquiry.email}
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-muted-foreground hidden sm:table-cell max-w-[200px]">
-                        <p className="truncate">{inquiry.subject}</p>
-                      </td>
-                      <td className="px-4 py-3.5 hidden md:table-cell">
-                        <span className="text-xs capitalize text-muted-foreground">
-                          {inquiry.inquiry_type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusClass}`}>
-                          {statusLabel}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
-                        {formatDate(inquiry.created_at)}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <InquiryActions inquiryId={inquiry.id} currentStatus={inquiry.status} />
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                    No inquiries yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                        )}
+                      </div>
+                      {/* Stacked mobile summary when columns are hidden */}
+                      <div className="sm:hidden mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                        {inquiry.subject && (
+                          <p className="line-clamp-1 text-foreground/85">
+                            {inquiry.subject}
+                          </p>
+                        )}
+                        <p className="capitalize">
+                          {inquiry.inquiry_type} · {formatDate(inquiry.created_at)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground hidden sm:table-cell max-w-[240px]">
+                      <Link
+                        href={`/admin/inquiries/${inquiry.id}`}
+                        className="truncate block hover:text-foreground transition-colors"
+                        title={inquiry.subject ?? undefined}
+                      >
+                        {inquiry.subject || "—"}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-xs capitalize text-muted-foreground">
+                        {inquiry.inquiry_type}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center text-xs px-2.5 py-0.5 rounded-md font-medium ${statusClass}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
+                      {formatDate(inquiry.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                        <InquiryActions
+                          inquiryId={inquiry.id}
+                          currentStatus={inquiry.status}
+                        />
+                        <Button asChild variant="ghost" size="xs">
+                          <Link
+                            href={`/admin/inquiries/${inquiry.id}`}
+                            aria-label={`View inquiry from ${inquiry.full_name}`}
+                          >
+                            <Eye className="size-3.5" />
+                            <span className="hidden xl:inline">View</span>
+                          </Link>
+                        </Button>
+                        <DeleteItemButton
+                          table="inquiries"
+                          id={inquiry.id}
+                          label={`inquiry from ${inquiry.full_name}`}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="py-12 text-center text-muted-foreground"
+                >
+                  No inquiries yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { LoginForm } from "./login-form";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -10,26 +10,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function LoginPage() {
-  // If already authenticated, redirect to admin
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
+interface LoginPageProps {
+  searchParams: Promise<{ redirectTo?: string }>;
+}
 
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { redirectTo } = await searchParams;
+  const target = safeRedirectPath(redirectTo);
+
+  // If already authenticated, redirect to target
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/admin");
+  if (user) redirect(target);
 
   return (
     <div className="min-h-screen bg-brand flex items-center justify-center p-4">
@@ -47,15 +41,15 @@ export default async function LoginPage() {
             />
             <span className="font-bold text-xl">Everest Smart Traders</span>
           </div>
-          <p className="text-white/60 text-sm">Admin Portal</p>
+          <p className="text-white/85 text-sm">Admin Portal</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
           <h1 className="text-xl font-bold text-foreground mb-1">Sign in</h1>
           <p className="text-sm text-muted-foreground mb-6">
             Access the content management system
           </p>
-          <LoginForm />
+          <LoginForm redirectTo={target} />
         </div>
       </div>
     </div>

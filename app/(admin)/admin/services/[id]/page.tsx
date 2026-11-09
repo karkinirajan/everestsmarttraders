@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ServiceForm } from "../service-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -34,15 +35,24 @@ export default async function EditServicePage({ params }: Props) {
           {svc.name}
         </span>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-foreground">Edit Service</h1>
-        <Link
-          href={`/services/${svc.slug}`}
-          target="_blank"
-          className="text-sm text-brand hover:text-est-amber transition-colors"
-        >
-          View on site →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/services#${svc.slug}`}
+            target="_blank"
+            className="text-sm text-brand hover:underline transition-colors"
+          >
+            View on site →
+          </Link>
+          <DeleteItemButton
+            table="services"
+            id={svc.id}
+            label={svc.name}
+            redirectTo="/admin/services"
+            size="sm"
+          />
+        </div>
       </div>
       <ServiceForm
         initialData={{

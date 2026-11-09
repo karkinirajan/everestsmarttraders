@@ -1,0 +1,33 @@
+name: Daily Supabase Keep-Alive
+
+on:
+  schedule:
+    # Runs every day at 04:17 UTC (10:02 NPT) to modify the database and keep the site warm
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    name: Daily Database Heartbeat
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL || 'https://everestsmarttraders.com' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - name: Record daily database heartbeat & ping site
+        run: node scripts/keepalive.mjs
