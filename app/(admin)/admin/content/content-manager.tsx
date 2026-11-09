@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 type HomepageSection = {
@@ -130,7 +131,14 @@ export function ContentManager({
   return (
     <div className="space-y-6">
       {(saved || error) && (
-        <div className={saved ? "flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg" : "text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg"}>
+        <div
+          role={error ? "alert" : "status"}
+          className={
+            saved
+              ? "flex items-center gap-2 text-sm text-success bg-success-muted px-4 py-3 rounded-lg"
+              : "text-sm text-destructive bg-destructive-muted px-4 py-3 rounded-lg"
+          }
+        >
           {saved && <CheckCircle2 className="size-4" />}
           {saved ? "Content saved successfully." : error}
         </div>
@@ -140,27 +148,40 @@ export function ContentManager({
         <h2 className="font-semibold text-foreground">Homepage Sections</h2>
         <div className="space-y-5">
           {sections.map((section, index) => (
-            <div key={section.section_key} className="grid gap-3 border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">{section.section_key}</p>
-                <label className="text-xs text-muted-foreground flex items-center gap-2">
-                  Visible
-                  <input
-                    type="checkbox"
+            <div
+              key={section.section_key}
+              className="grid gap-3 border border-border rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-foreground font-mono">
+                  {section.section_key}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={`sec-vis-${section.section_key}`}
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    Visible
+                  </Label>
+                  <Switch
+                    id={`sec-vis-${section.section_key}`}
                     checked={section.is_visible}
-                    onChange={(e) => {
+                    onCheckedChange={(val) => {
                       const copy = [...sections];
-                      copy[index] = { ...copy[index], is_visible: e.target.checked };
+                      copy[index] = { ...copy[index], is_visible: val };
                       setSections(copy);
                     }}
                   />
-                </label>
+                </div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Title</Label>
+                  <Label htmlFor={`sec-title-${section.section_key}`}>
+                    Title
+                  </Label>
                   <Input
+                    id={`sec-title-${section.section_key}`}
                     value={section.title ?? ""}
                     onChange={(e) => {
                       const copy = [...sections];
@@ -170,13 +191,19 @@ export function ContentManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Position</Label>
+                  <Label htmlFor={`sec-pos-${section.section_key}`}>
+                    Position
+                  </Label>
                   <Input
+                    id={`sec-pos-${section.section_key}`}
                     type="number"
                     value={section.position}
                     onChange={(e) => {
                       const copy = [...sections];
-                      copy[index] = { ...copy[index], position: Number(e.target.value) };
+                      copy[index] = {
+                        ...copy[index],
+                        position: Number(e.target.value),
+                      };
                       setSections(copy);
                     }}
                   />
@@ -184,8 +211,11 @@ export function ContentManager({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Subtitle</Label>
+                <Label htmlFor={`sec-sub-${section.section_key}`}>
+                  Subtitle
+                </Label>
                 <Textarea
+                  id={`sec-sub-${section.section_key}`}
                   rows={2}
                   value={section.subtitle ?? ""}
                   onChange={(e) => {
@@ -197,14 +227,21 @@ export function ContentManager({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Content JSON</Label>
+                <Label htmlFor={`sec-json-${section.section_key}`}>
+                  Content JSON
+                </Label>
                 <Textarea
+                  id={`sec-json-${section.section_key}`}
                   rows={5}
+                  className="font-mono text-xs"
                   value={JSON.stringify(section.content ?? {}, null, 2)}
                   onChange={(e) => {
                     const copy = [...sections];
                     try {
-                      copy[index] = { ...copy[index], content: JSON.parse(e.target.value) };
+                      copy[index] = {
+                        ...copy[index],
+                        content: JSON.parse(e.target.value),
+                      };
                       setSections(copy);
                       setError(null);
                     } catch {
@@ -222,10 +259,36 @@ export function ContentManager({
         <h2 className="font-semibold text-foreground">Announcements</h2>
         <div className="space-y-4">
           {announcements.map((item, index) => (
-            <div key={item.id} className="grid gap-3 border border-border rounded-lg p-4">
+            <div
+              key={item.id}
+              className="grid gap-3 border border-border rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Announcement #{index + 1}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={`ann-active-${item.id}`}
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    Active
+                  </Label>
+                  <Switch
+                    id={`ann-active-${item.id}`}
+                    checked={item.is_active}
+                    onCheckedChange={(val) => {
+                      const copy = [...announcements];
+                      copy[index] = { ...copy[index], is_active: val };
+                      setAnnouncements(copy);
+                    }}
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5">
-                <Label>Message</Label>
+                <Label htmlFor={`ann-msg-${item.id}`}>Message</Label>
                 <Textarea
+                  id={`ann-msg-${item.id}`}
                   rows={2}
                   value={item.message}
                   onChange={(e) => {
@@ -237,8 +300,9 @@ export function ContentManager({
               </div>
               <div className="grid sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Link</Label>
+                  <Label htmlFor={`ann-link-${item.id}`}>Link</Label>
                   <Input
+                    id={`ann-link-${item.id}`}
                     value={item.link ?? ""}
                     onChange={(e) => {
                       const copy = [...announcements];
@@ -248,26 +312,40 @@ export function ContentManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Link Label</Label>
+                  <Label htmlFor={`ann-label-${item.id}`}>Link Label</Label>
                   <Input
+                    id={`ann-label-${item.id}`}
                     value={item.link_label ?? ""}
                     onChange={(e) => {
                       const copy = [...announcements];
-                      copy[index] = { ...copy[index], link_label: e.target.value };
+                      copy[index] = {
+                        ...copy[index],
+                        link_label: e.target.value,
+                      };
                       setAnnouncements(copy);
                     }}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Type</Label>
-                  <Input
+                  <Label htmlFor={`ann-type-${item.id}`}>Type</Label>
+                  <select
+                    id={`ann-type-${item.id}`}
                     value={item.type}
                     onChange={(e) => {
                       const copy = [...announcements];
-                      copy[index] = { ...copy[index], type: e.target.value as Announcement["type"] };
+                      copy[index] = {
+                        ...copy[index],
+                        type: e.target.value as Announcement["type"],
+                      };
                       setAnnouncements(copy);
                     }}
-                  />
+                    className="h-9 w-full rounded-lg border border-input bg-field px-3 py-1 text-sm text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -279,11 +357,37 @@ export function ContentManager({
         <h2 className="font-semibold text-foreground">SEO Overrides</h2>
         <div className="space-y-4">
           {seoOverrides.map((item, index) => (
-            <div key={item.id} className="grid gap-3 border border-border rounded-lg p-4">
+            <div
+              key={item.id}
+              className="grid gap-3 border border-border rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-mono text-muted-foreground">
+                  {item.path}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={`seo-noindex-${item.id}`}
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    Noindex
+                  </Label>
+                  <Switch
+                    id={`seo-noindex-${item.id}`}
+                    checked={item.noindex}
+                    onCheckedChange={(val) => {
+                      const copy = [...seoOverrides];
+                      copy[index] = { ...copy[index], noindex: val };
+                      setSeoOverrides(copy);
+                    }}
+                  />
+                </div>
+              </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Path</Label>
+                  <Label htmlFor={`seo-path-${item.id}`}>Path</Label>
                   <Input
+                    id={`seo-path-${item.id}`}
                     value={item.path}
                     onChange={(e) => {
                       const copy = [...seoOverrides];
@@ -293,8 +397,9 @@ export function ContentManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>OG Image</Label>
+                  <Label htmlFor={`seo-og-${item.id}`}>OG Image</Label>
                   <Input
+                    id={`seo-og-${item.id}`}
                     value={item.og_image ?? ""}
                     onChange={(e) => {
                       const copy = [...seoOverrides];
@@ -305,8 +410,9 @@ export function ContentManager({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Title</Label>
+                <Label htmlFor={`seo-title-${item.id}`}>Title</Label>
                 <Input
+                  id={`seo-title-${item.id}`}
                   value={item.title ?? ""}
                   onChange={(e) => {
                     const copy = [...seoOverrides];
@@ -316,13 +422,17 @@ export function ContentManager({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Description</Label>
+                <Label htmlFor={`seo-desc-${item.id}`}>Description</Label>
                 <Textarea
+                  id={`seo-desc-${item.id}`}
                   rows={2}
                   value={item.description ?? ""}
                   onChange={(e) => {
                     const copy = [...seoOverrides];
-                    copy[index] = { ...copy[index], description: e.target.value };
+                    copy[index] = {
+                      ...copy[index],
+                      description: e.target.value,
+                    };
                     setSeoOverrides(copy);
                   }}
                 />

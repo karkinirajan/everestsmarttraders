@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { CategoryForm } from "../category-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -27,7 +28,16 @@ export default async function EditCategoryPage({ params }: Props) {
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-foreground font-medium line-clamp-1">{cat.name}</span>
       </div>
-      <h1 className="text-2xl font-bold text-foreground">Edit Category</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-foreground">Edit Category</h1>
+        <DeleteItemButton
+          table="product_categories"
+          id={cat.id}
+          label={cat.name}
+          redirectTo="/admin/categories"
+          size="sm"
+        />
+      </div>
       <CategoryForm initialData={{
         id: cat.id, name: cat.name, slug: cat.slug,
         description: cat.description, image_url: cat.image_url,

@@ -7,8 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createBrowserClient } from "@supabase/ssr";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
-export function LoginForm() {
+interface LoginFormProps {
+  redirectTo?: string;
+}
+
+export function LoginForm({ redirectTo = "/admin" }: LoginFormProps) {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +48,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/admin");
+    router.push(safeRedirectPath(redirectTo));
     router.refresh();
   }
 
@@ -52,7 +57,7 @@ export function LoginForm() {
       {error && (
         <div
           role="alert"
-          className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg"
+          className="text-sm text-destructive bg-destructive-muted px-4 py-3 rounded-lg"
         >
           {error}
         </div>

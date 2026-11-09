@@ -53,7 +53,8 @@ export default async function ServicesPage() {
                 return (
                   <div
                     key={service.id}
-                    className={`grid lg:grid-cols-2 gap-10 items-center ${
+                    id={service.slug}
+                    className={`scroll-mt-24 grid lg:grid-cols-2 gap-10 items-center ${
                       index % 2 !== 0 ? "lg:[&>*:first-child]:order-last" : ""
                     }`}
                   >

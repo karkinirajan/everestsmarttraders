@@ -55,3 +55,17 @@ read): none found.
 
 `.github/workflows/ci.yml` runs on every push and pull request to `main`, on Node 24 and 26: install, type-check, lint (zero
 warnings), tests with coverage (including the database tests), build (with placeholder environment values), `npm audit`.
+
+## Keeping the free-tier database awake
+
+Supabase pauses free projects after about 7 days without database activity. A real write happens at least once a day:
+
+| Trigger | Schedule | Notes |
+| --- | --- | --- |
+| Vercel Cron (`vercel.json`) | daily 03:00 UTC to `/api/keepalive` | Set `CRON_SECRET` in Vercel; Vercel sends it as a Bearer token. |
+| GitHub Actions (`.github/workflows/keepalive.yml`) | daily 04:17 UTC + manual | Needs repo secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; optional `SITE_URL`, `CRON_SECRET`. |
+| `/api/health`, admin dashboard | on visit | Self-healing: writes once per UTC day per instance. |
+
+Apply `supabase/migrations/006_keepalive_heartbeat.sql` (or re-run `supabase/setup.sql`). It adds `system_heartbeats` and
+`record_heartbeat()`, which upserts today's row and prunes rows older than 30 days. Without it the code falls back to
+`rate_limit_hit`, then to a `site_settings` upsert. Manual run: `npm run db:keepalive`.

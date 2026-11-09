@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { FaqForm } from "../faq-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -27,7 +28,16 @@ export default async function EditFaqPage({ params }: Props) {
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-foreground font-medium line-clamp-1">{faq.question}</span>
       </div>
-      <h1 className="text-2xl font-bold text-foreground">Edit FAQ</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-foreground">Edit FAQ</h1>
+        <DeleteItemButton
+          table="faqs"
+          id={faq.id}
+          label={faq.question}
+          redirectTo="/admin/faqs"
+          size="sm"
+        />
+      </div>
       <FaqForm initialData={{
         id: faq.id, question: faq.question, answer: faq.answer,
         category: faq.category, is_published: faq.is_published, position: faq.position,

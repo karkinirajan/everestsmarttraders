@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { formatDate } from "@/lib/utils";
 import { INQUIRY_STATUS_LABELS, INQUIRY_STATUS_STYLES } from "@/lib/constants";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { InquiryActions } from "../inquiry-actions";
 
 interface Props {
@@ -60,10 +61,19 @@ export default async function InquiryDetailPage({ params }: Props) {
             </span>
           </div>
         </div>
-        <InquiryActions
-          inquiryId={inquiry.id}
-          currentStatus={inquiry.status}
-        />
+        <div className="flex items-center gap-2 shrink-0">
+          <InquiryActions
+            inquiryId={inquiry.id}
+            currentStatus={inquiry.status}
+          />
+          <DeleteItemButton
+            table="inquiries"
+            id={inquiry.id}
+            label={`inquiry from ${inquiry.full_name}`}
+            redirectTo="/admin/inquiries"
+            size="sm"
+          />
+        </div>
       </div>
 
       {/* Contact details */}
@@ -203,7 +213,10 @@ export default async function InquiryDetailPage({ params }: Props) {
         )}
         <Button asChild variant="outline" size="sm">
           <a
-            href={`https://wa.me/977${inquiry.phone?.replace(/\D/g, "")}`}
+            href={`https://wa.me/${(() => {
+              const digits = inquiry.phone?.replace(/\D/g, "") ?? "";
+              return digits.startsWith("977") ? digits : `977${digits}`;
+            })()}`}
             target="_blank"
             rel="noopener noreferrer"
           >

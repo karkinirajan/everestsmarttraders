@@ -34,7 +34,7 @@ export const INQUIRY_STATUS_STYLES: Record<string, string> = {
   contacted: "bg-warning-muted text-warning",
   quoted: "bg-violet-muted text-violet",
   closed: "bg-success-muted text-success",
-  spam: "bg-destructive/10 text-destructive",
+  spam: "bg-destructive-muted text-destructive",
 };
 
 // Nav links — these can later come from DB but are defined here as fallback

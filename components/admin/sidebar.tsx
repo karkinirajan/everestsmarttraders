@@ -147,10 +147,11 @@ export function AdminSidebar({
                   <Link
                     href={href}
                     onClick={onClose}
+                    aria-current={isActive(href, exact) ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[0.95rem] transition-colors group",
                       isActive(href, exact)
-                        ? "bg-brand/15 text-brand font-medium"
+                        ? "bg-brand-muted text-brand font-medium border border-brand/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                     )}
                   >
@@ -182,7 +183,7 @@ export function AdminSidebar({
           type="button"
           variant="ghost"
           onClick={handleSignOut}
-          className="flex items-center justify-start gap-2.5 px-2.5 py-2 text-[0.95rem] text-muted-foreground hover:text-destructive hover:bg-destructive/10 w-full"
+          className="flex items-center justify-start gap-2.5 px-2.5 py-2 text-[0.95rem] text-muted-foreground hover:text-destructive hover:bg-destructive-muted w-full"
         >
           <LogOut className="size-4" />
           Sign Out

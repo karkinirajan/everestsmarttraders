@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProjectForm } from "../project-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -31,12 +32,24 @@ export default async function EditProjectPage({ params }: Props) {
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-foreground font-medium line-clamp-1">{project.title}</span>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-foreground">Edit Project</h1>
-        <Link href={`/projects/${project.slug}`} target="_blank"
-          className="text-sm text-brand hover:text-est-amber transition-colors">
-          View on site →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/showcase#projects"
+            target="_blank"
+            className="text-sm text-brand hover:underline transition-colors"
+          >
+            View on site →
+          </Link>
+          <DeleteItemButton
+            table="projects"
+            id={project.id}
+            label={project.title}
+            redirectTo="/admin/projects"
+            size="sm"
+          />
+        </div>
       </div>
       <ProjectForm industries={industries} initialData={{
         id: project.id, title: project.title, slug: project.slug,

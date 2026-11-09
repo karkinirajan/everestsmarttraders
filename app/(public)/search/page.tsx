@@ -3,6 +3,8 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/public/shared/product-card";
 import { ProjectCard } from "@/components/public/shared/project-card";
+import { productSearchFilter, projectSearchFilter } from "@/lib/search";
+import { searchQuerySchema } from "@/lib/validations/inquiry";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -19,29 +21,30 @@ interface SearchProps {
 }
 
 async function searchContent(query: string) {
-  if (!query || query.trim().length < 2)
+  const validated = searchQuerySchema.safeParse({ q: query.trim() });
+  if (!validated.success)
     return { products: [], projects: [], services: [] };
 
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
   );
-
-  const q = `%${query.trim()}%`;
 
   const [productsRes, projectsRes] = await Promise.all([
     supabase
       .from("products")
       .select("*, category:product_categories(*)")
       .eq("is_published", true)
-      .or(`name.ilike.${q},short_description.ilike.${q}`)
+      .eq("is_active", true)
+      .or(productSearchFilter(validated.data.q))
       .limit(8),
     supabase
       .from("projects")
       .select("*, industry:industries(*)")
       .eq("is_published", true)
-      .or(`title.ilike.${q},summary.ilike.${q},location.ilike.${q}`)
+      .or(projectSearchFilter(validated.data.q))
       .limit(6),
   ]);
 

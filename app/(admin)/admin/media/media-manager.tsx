@@ -31,7 +31,7 @@ interface MediaManagerProps {
   initialAssets: MediaAsset[];
 }
 
-const FOLDERS = ["general", "products", "projects", "blog", "services"];
+const FOLDERS = ["general", "products", "projects", "blog", "services", "site"];
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return "—";
@@ -121,7 +121,7 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
         {uploadError && (
           <div
             role="alert"
-            className="text-sm text-destructive bg-destructive/10 px-3 py-2.5 rounded-lg"
+            className="text-sm text-destructive bg-destructive-muted px-3 py-2.5 rounded-lg"
           >
             {uploadError}
           </div>
@@ -160,12 +160,12 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
             id="file"
             ref={fileRef}
             type="file"
-            accept="image/*,application/pdf,.svg"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif,application/pdf"
             className="cursor-pointer"
             required
           />
           <p className="text-xs text-muted-foreground">
-            Images (JPG, PNG, WebP, SVG) and PDFs. Max 10 MB.
+            Images (JPG, PNG, WebP, GIF, AVIF) and PDFs. Max 10 MB.
           </p>
         </div>
 

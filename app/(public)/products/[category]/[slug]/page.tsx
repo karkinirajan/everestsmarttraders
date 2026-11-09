@@ -259,12 +259,12 @@ export default async function ProductDetailPage({ params }: Props) {
               <h2 className="text-xl font-semibold text-foreground mb-6">
                 Specifications
               </h2>
-              <div className="bg-muted/40 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-muted/40 border border-border rounded-xl overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
                   <caption className="sr-only">
                     Product specifications for {product.name}
                   </caption>
-                  <tbody>
+                  <tbody className="divide-y divide-border/60">
                     {product.specifications.map((spec, i) => (
                       <tr
                         key={i}
@@ -272,10 +272,13 @@ export default async function ProductDetailPage({ params }: Props) {
                           i % 2 === 0 ? "bg-transparent" : "bg-muted/60"
                         }
                       >
-                        <td className="px-5 py-3 font-medium text-foreground w-1/3">
+                        <th
+                          scope="row"
+                          className="px-4 sm:px-5 py-3 text-left font-medium text-foreground w-2/5 sm:w-1/3 align-top break-words"
+                        >
                           {spec.label}
-                        </td>
-                        <td className="px-5 py-3 text-muted-foreground">
+                        </th>
+                        <td className="px-4 sm:px-5 py-3 text-muted-foreground align-top break-words">
                           {spec.value}
                         </td>
                       </tr>

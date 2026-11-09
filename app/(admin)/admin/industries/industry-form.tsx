@@ -78,7 +78,7 @@ export function IndustryForm({ initialData }: IndustryFormProps) {
         </div>
       )}
       {error && (
-        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">{error}</div>
+        <div role="alert" className="text-sm text-destructive bg-destructive-muted px-4 py-3 rounded-lg">{error}</div>
       )}
 
       <div className="p-5 bg-card border border-border rounded-xl space-y-4">

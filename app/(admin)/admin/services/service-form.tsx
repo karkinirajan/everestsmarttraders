@@ -106,7 +106,7 @@ export function ServiceForm({ initialData }: ServiceFormProps) {
         </div>
       )}
       {error && (
-        <div className="text-sm text-destructive bg-destructive/10 px-4 py-3 rounded-lg">
+        <div role="alert" className="text-sm text-destructive bg-destructive-muted px-4 py-3 rounded-lg">
           {error}
         </div>
       )}

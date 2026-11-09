@@ -18,6 +18,7 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
+      ...(isDev ? [] : ["upgrade-insecure-requests"]),
     ]
       .join("; ")
       .trim(),
@@ -32,7 +33,8 @@ const securityHeaders = [
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+    value:
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
   },
   ...(isDev
     ? []

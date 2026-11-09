@@ -37,7 +37,8 @@ export function truncate(text: string, maxLength: number): string {
 /** Build a WhatsApp deep link */
 export function whatsappLink(phone: string, message?: string): string {
   const digits = phone.replace(/\D/g, "");
-  const base = `https://wa.me/977${digits}`;
+  const normalized = digits.startsWith("977") ? digits : `977${digits}`;
+  const base = `https://wa.me/${normalized}`;
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
 

@@ -3,6 +3,15 @@ import Image from "next/image";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
@@ -25,14 +34,14 @@ export default async function AdminProductsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Products</h1>
           <p className="text-muted-foreground mt-0.5">
             {products.length} products total
           </p>
         </div>
-        <Button asChild size="sm">
+        <Button asChild size="sm" className="self-start sm:self-auto">
           <Link href="/admin/products/new">
             <Plus className="size-4" />
             Add Product
@@ -41,103 +50,102 @@ export default async function AdminProductsPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-10" />
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Product
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">
-                  Category
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">
-                  Price Range
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Status
-                </th>
-                <th className="px-4 py-3 w-20" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {products.length > 0 ? (
-                products.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="relative size-10 rounded-lg overflow-hidden bg-muted shrink-0">
-                        <Image
-                          src={
-                            product.cover_image_url ??
-                            pickFallbackImage(product.slug, 35)
-                          }
-                          alt={product.name}
-                          fill
-                          sizes="40px"
-                          className="object-cover"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-foreground line-clamp-1">
-                        {product.name}
-                      </p>
-                      {product.is_featured && (
-                        <span className="text-xs text-est-amber">Featured</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="text-xs text-muted-foreground">
-                        {product.category?.name ?? "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">
-                      {product.price_range ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          product.is_published
-                            ? "bg-success-muted text-success"
-                            : "bg-muted text-muted-foreground"
-                        }`}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-14">Image</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead className="hidden sm:table-cell">Category</TableHead>
+              <TableHead className="hidden md:table-cell">Price Range</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {products.length > 0 ? (
+              products.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell className="w-14">
+                    <div className="relative size-10 rounded-lg overflow-hidden bg-muted shrink-0 border border-border/60">
+                      <Image
+                        src={
+                          product.cover_image_url ??
+                          pickFallbackImage(product.slug, 35)
+                        }
+                        alt={product.name}
+                        fill
+                        sizes="40px"
+                        className="object-cover"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="font-medium text-foreground hover:text-brand transition-colors line-clamp-1"
                       >
-                        {product.is_published ? "Published" : "Draft"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Button asChild variant="ghost" size="sm">
+                        {product.name}
+                      </Link>
+                      {product.is_featured && (
+                        <Badge variant="amber">Featured</Badge>
+                      )}
+                    </div>
+                    <div className="sm:hidden mt-1 text-xs text-muted-foreground">
+                      {product.category?.name ?? "Uncategorized"}
+                      {product.price_range ? ` · ${product.price_range}` : ""}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <span className="text-xs text-muted-foreground">
+                      {product.category?.name ?? "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+                    {product.price_range ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={product.is_published ? "success" : "muted"}
+                    >
+                      {product.is_published ? "Published" : "Draft"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center justify-end gap-1">
+                      <Button asChild variant="ghost" size="xs">
                         <Link href={`/admin/products/${product.id}`}>
                           <Pencil className="size-3.5" />
                           Edit
                         </Link>
                       </Button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-12 text-center text-muted-foreground"
+                      <DeleteItemButton
+                        table="products"
+                        id={product.id}
+                        label={product.name}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="py-12 text-center text-muted-foreground"
+                >
+                  No products yet.{" "}
+                  <Link
+                    href="/admin/products/new"
+                    className="text-brand hover:underline"
                   >
-                    No products yet.{" "}
-                    <Link
-                      href="/admin/products/new"
-                      className="text-brand hover:underline"
-                    >
-                      Add one
-                    </Link>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    Add one
+                  </Link>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

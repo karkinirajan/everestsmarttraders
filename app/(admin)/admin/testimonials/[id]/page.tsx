@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { TestimonialForm } from "../testimonial-form";
+import { DeleteItemButton } from "@/components/admin/delete-item-button";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { connection } from "next/server";
 
@@ -27,7 +28,16 @@ export default async function EditTestimonialPage({ params }: Props) {
         <span className="text-muted-foreground">/</span>
         <span className="text-sm text-foreground font-medium line-clamp-1">{t.client_name}</span>
       </div>
-      <h1 className="text-2xl font-bold text-foreground">Edit Testimonial</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-foreground">Edit Testimonial</h1>
+        <DeleteItemButton
+          table="testimonials"
+          id={t.id}
+          label={`testimonial from ${t.client_name}`}
+          redirectTo="/admin/testimonials"
+          size="sm"
+        />
+      </div>
       <TestimonialForm initialData={{
         id: t.id, client_name: t.client_name, client_title: t.client_title,
         client_company: t.client_company, content: t.content,
