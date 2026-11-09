@@ -1,31 +1,12 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireEditor } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin-client";
+import { isUuid, publicMessage } from "@/lib/admin-rules";
+import { MEDIA_TYPES, detectMediaType, safeFolder, storageFileName } from "@/lib/media-rules";
 import type { MutateResult } from "@/lib/actions/admin-mutate";
 
 const BUCKET = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "media";
-
-async function requireEditor(): Promise<
-  { ok: true } | { ok: false; error: string }
-> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Not signed in." };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || !["admin", "editor"].includes(profile.role)) {
-    return { ok: false, error: "Not authorized." };
-  }
-  return { ok: true };
-}
 
 interface MediaAsset {
   id: string;
@@ -43,6 +24,11 @@ interface MediaAsset {
  * Upload a file to Supabase Storage and record it in media_assets.
  * Uses the service-role client for both the storage write and the table
  * insert, so it works regardless of storage/RLS policy state.
+ *
+ * What is stored is decided here, not by the browser: the type is read from
+ * the file's bytes (images, mp4/webm video and PDF; never SVG, which can
+ * carry script), the size is capped per type, the folder must be a known one
+ * and the stored name and content type come from the detected type.
  */
 export async function adminUploadMedia(
   formData: FormData,
@@ -51,21 +37,28 @@ export async function adminUploadMedia(
   if (!auth.ok) return { success: false, error: auth.error };
 
   const file = formData.get("file");
-  const folder = String(formData.get("folder") || "general");
-  const alt = (formData.get("alt") as string) || null;
+  const folder = safeFolder(formData.get("folder"));
+  const alt = String(formData.get("alt") ?? "").slice(0, 300) || null;
 
-  if (!(file instanceof File)) {
+  if (!(file instanceof File) || file.size === 0) {
     return { success: false, error: "No file provided." };
   }
 
   const buffer = await file.arrayBuffer();
+  const type = detectMediaType(new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 16)));
+  if (!type) {
+    return { success: false, error: "That file type is not allowed. Use JPEG, PNG, WebP, GIF, AVIF, MP4, WebM or PDF." };
+  }
+  if (buffer.byteLength > MEDIA_TYPES[type].maxBytes) {
+    return { success: false, error: `That file is too large (the limit is ${MEDIA_TYPES[type].maxBytes / (1024 * 1024)} MB for this type).` };
+  }
+
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
   const hash = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")
     .slice(0, 16);
-  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_").toLowerCase();
-  const storagePath = `${folder}/${hash}_${safeName}`;
+  const storagePath = `${folder}/${storageFileName(hash, file.name, type)}`;
 
   const admin = createAdminClient();
 
@@ -84,19 +77,22 @@ export async function adminUploadMedia(
 
   const { error: storageErr } = await admin.storage
     .from(BUCKET)
-    .upload(storagePath, file, { cacheControl: "3600", upsert: false });
+    .upload(storagePath, buffer, { cacheControl: "3600", upsert: false, contentType: type });
 
-  if (storageErr) return { success: false, error: storageErr.message };
+  if (storageErr) {
+    console.error("[admin] media upload failed:", storageErr.message);
+    return { success: false, error: "Could not upload the file. Please try again." };
+  }
 
   const { data: urlData } = admin.storage.from(BUCKET).getPublicUrl(storagePath);
 
   const { data: asset, error: dbErr } = await admin
     .from("media_assets")
     .insert({
-      filename: file.name,
+      filename: file.name.slice(0, 200),
       url: urlData.publicUrl,
       storage_path: storagePath,
-      mime_type: file.type || null,
+      mime_type: type,
       size: file.size,
       alt,
       folder,
@@ -104,21 +100,33 @@ export async function adminUploadMedia(
     .select("*")
     .single();
 
-  if (dbErr) return { success: false, error: dbErr.message };
+  if (dbErr) {
+    console.error("[admin] media record failed:", dbErr.code ?? "", dbErr.message);
+    return { success: false, error: publicMessage(dbErr) };
+  }
   return { success: true, data: asset as MediaAsset };
 }
 
-export async function adminDeleteMedia(
-  id: string,
-  storagePath: string,
-): Promise<MutateResult<null>> {
+/** Deletes a library item. The stored file is the one the record names: a path from the browser is never trusted. */
+export async function adminDeleteMedia(id: string): Promise<MutateResult<null>> {
   const auth = await requireEditor();
   if (!auth.ok) return { success: false, error: auth.error };
+  if (!isUuid(id)) return { success: false, error: "Invalid id." };
 
   const admin = createAdminClient();
-  await admin.storage.from(BUCKET).remove([storagePath]);
+  const { data: asset } = await admin.from("media_assets").select("storage_path").eq("id", id).maybeSingle();
+  if (!asset) return { success: false, error: "That file no longer exists." };
+
+  const { error: storageErr } = await admin.storage.from(BUCKET).remove([asset.storage_path]);
+  if (storageErr) {
+    console.error("[admin] media remove failed:", storageErr.message);
+    return { success: false, error: "Could not delete the file. Please try again." };
+  }
   const { error } = await admin.from("media_assets").delete().eq("id", id);
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    console.error("[admin] media record delete failed:", error.code ?? "", error.message);
+    return { success: false, error: publicMessage(error) };
+  }
   return { success: true, data: null };
 }

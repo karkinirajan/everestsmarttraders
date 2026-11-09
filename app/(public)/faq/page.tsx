@@ -1,4 +1,5 @@
 import { getFAQs } from "@/lib/supabase/queries";
+import { jsonLd } from "@/lib/json-ld";
 import { FAQClient } from "./faq-client";
 import type { Metadata } from "next";
 
@@ -59,7 +60,7 @@ export default async function FAQPage() {
       {faqs.length > 0 && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(faqSchema) }}
         />
       )}
     </div>

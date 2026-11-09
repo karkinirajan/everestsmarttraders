@@ -84,7 +84,7 @@ export function MediaManager({ initialAssets }: MediaManagerProps) {
     if (!confirm(`Delete "${asset.filename}"? This cannot be undone.`)) return;
 
     startTransition(async () => {
-      const result = await adminDeleteMedia(asset.id, asset.storage_path);
+      const result = await adminDeleteMedia(asset.id);
       if (result.success) {
         setAssets((prev) => prev.filter((a) => a.id !== asset.id));
       } else {

@@ -5,7 +5,8 @@ import { ArrowLeft, Calendar, Clock, PlayCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
-import { absoluteUrl, dangerousHtml, formatDate } from "@/lib/utils";
+import { absoluteUrl, formatDate } from "@/lib/utils";
+import { dangerousHtml } from "@/lib/sanitize";
 import {
   getBlogPostBySlug,
   getAllPublishedBlogSlugs,
