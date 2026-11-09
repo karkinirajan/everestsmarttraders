@@ -9,7 +9,7 @@ Start point: `c21cf93`.
   vulnerabilities in the lockfile (1 critical, 9 high), and a database policy that let **anyone who could sign up make themselves an
   admin**. Reading the code with an attacker's eye found more: forms with no rate limit, a regex-based HTML cleaner, caller addresses
   taken from spoofable headers, admin actions that took any payload and showed database errors.
-- **Now:** all of that fixed, each fix with tests. 361 tests in 16 files, 136 deliberate bugs that the suite fails for, the SQL
+- **Now:** all of that fixed, each fix with tests. 395 tests in 16 files, 144 deliberate bugs that the suite fails for, the SQL
   migrations run for real in Postgres (PGlite), dependencies on current releases with `npm audit` at 0, CI on Node 24 and 26,
   README extended, `VERSIONS.md` and four docs chapters added.
 - **Needs a person:** **apply migration `004` to the Supabase project, and check who the admins are** (the hole existed until it is
@@ -23,9 +23,9 @@ Run on the final tree, 2026-11-09:
 |---|---|---|
 | Types | `npm run type-check` | pass |
 | Lint | `npm run lint` | pass, 0 errors and 0 warnings (`--max-warnings=0`) |
-| Tests | `npm test` | 361 passed, 16 files |
-| Coverage | `npm run test:coverage` | over `lib/**`: statements 71.92%, branches 74.46%, functions 51.42%, lines 69.35%; the files this pass added or rewrote are at or near 100%, the low figure is untouched, untested files (`queries.ts` and others), see [docs/03-testing.md](docs/03-testing.md) |
-| Mutation | `test/mutation/groups.py` | 136 of 136 killed, each group on a green baseline, in separate copies of the repo (a first run left 7 survivors: 5 missing assertions fixed, 1 redundant guard removed) |
+| Tests | `npm test` | 395 passed, 16 files |
+| Coverage | `npm run test:coverage` | over `lib/**`: statements 72.81%, branches 76.07%, functions 52.33%, lines 70.15%; the files this pass added or rewrote are at or near 100%, the low figure is untouched, untested files (`queries.ts` and others), see [docs/03-testing.md](docs/03-testing.md) |
+| Mutation | `test/mutation/groups.py` | 144 of 144 killed, each group on a green baseline, in separate copies of the repo (a first run left 7 survivors: 5 missing assertions fixed, 1 redundant guard removed; after the review follow-up, one more redundant check removed and one defensive no-op listed as equivalent) |
 | Build | `npm run build` | pass (with placeholder Supabase values: no real project was contacted) |
 | Audit | `npm audit` | 0 vulnerabilities (was 21) |
 | Secrets | pattern scan of the tree and all 8 commits | none found (a pattern scan, counts only; `.env*` files were not read; not a guarantee) |
@@ -41,14 +41,14 @@ against real Supabase and its storage; Supabase's own Auth sign-up setting.
 |---|---|
 | **Policy "Profiles: own profile writable" let any signed-in user set their own `role` to `admin`** (reproduced against the shipped migrations in Postgres) | Migration 004: a trigger refuses a role change by a signed-in non-admin; the update policy now checks the new row; a profile id cannot change |
 | **"Inquiries: public insert" let anyone with the anon key insert rows directly**, choosing their own status and notes | Policy dropped (the site inserts with the service-role key) |
-| Contact and quote server actions had no rate limit | 5 an hour per caller, 200 an hour for the site, counted in Postgres (migration 005, callable only with the service-role key) |
-| Caller address taken from `cf-connecting-ip` / `x-forwarded-for` / `x-real-ip` on any request, so a caller chose their rate-limit key | Believed only on Vercel or with `TRUST_PROXY_HEADERS=true`; IPv6 keyed on the /64 |
+| Contact and quote server actions had no rate limit; the inquiry API allowed 12 a minute per caller | 5 an hour per caller, 200 an hour for the site, counted in Postgres (migration 005, callable only with the service-role key), through one helper shared by the forms and the API |
+| Caller address taken from `cf-connecting-ip` / `x-forwarded-for` / `x-real-ip` on any request, so a caller chose their rate-limit key | Believed only on Vercel or with `TRUST_PROXY_HEADERS=true`; `CF-Connecting-IP` only with the further opt-in `TRUST_CLOUDFLARE_HEADERS=true` (Vercel passes it through untouched); IPv6 keyed on the /64 |
 | Inquiry API's size limit trusted `Content-Length` (absent on a chunked request); `location` unbounded | Bytes counted as they arrive; location capped at 120 |
 | Search text put unquoted into a PostgREST filter string (`,` and `()` added conditions) | Quoted and escaped |
 | CMS HTML cleaned with regexes (`<a href=javascript:...>` with no quotes, `<img/src=x/onerror=...>` and others got through) | `sanitize-html` with an allow-list; 36 known payloads in the tests |
 | FAQ JSON-LD could be closed with `</script>` by an editor | `jsonLd()` escapes `<` and the line separators |
 | Admin actions: any payload (ids, timestamps), any upsert key, any id text, database errors shown to the browser | Server-owned columns dropped, upsert keys allow-listed per table, UUID ids, a sentence by error code (the detail is logged) |
-| Media upload trusted the declared type, folder and file name; any type was stored in a public bucket; delete removed whatever path the browser sent | Type from the bytes (never SVG/HTML), 10 MB cap, known folders, generated names, delete uses the record's path |
+| Media upload trusted the declared type, folder and file name; any type was stored in a public bucket; delete removed whatever path the browser sent | Type from the bytes (never SVG/HTML), 10 MB cap, known folders, generated names, delete uses the record's path; the record's path/url/type/size/folder cannot be rewritten through the generic actions, and the path is checked before anything is removed |
 | Media library could not upload a file over 1 MB (framework default) | `serverActions.bodySizeLimit` 11 MB |
 | Session-and-role check copied twice; an unused cookie-bound service-role client in `server.ts` | One `lib/auth.ts`; the unused client removed |
 | `scripts/apply-schema.mjs` ran only migrations 001 and 002 and hard-coded one project's id | Runs every migration in order (`--from 004`); the project comes from `NEXT_PUBLIC_SUPABASE_URL` |
@@ -71,6 +71,7 @@ Details and the things left alone: [docs/02-security.md](docs/02-security.md).
 | `lib/actions/users.ts` | Own role check | `requireAdmin` |
 | `lib/actions/inquiry.ts` | Honeypot only | Honeypot, then the rate limits |
 | `lib/client-address.ts` (new), `lib/validations/inquiry.ts` | `getClientIp` believed any header | `clientAddress` |
+| `lib/inquiry-limits.ts` (new) | per-route limits | One limiter for the forms and the inquiry API |
 | `lib/rate-limit.ts` (new) | per-route in-memory maps | Postgres counters with a bounded in-memory fallback |
 | `lib/sanitize.ts` (new), `lib/utils.ts` | Regex cleaner in `utils.ts` (client-imported) | Parser-based allow-list, server only; `utils.ts` keeps the helpers |
 | `lib/json-ld.ts` (new), `app/layout.tsx`, `app/(public)/faq/page.tsx` | `JSON.stringify` into a script tag | `jsonLd()` |
@@ -95,7 +96,7 @@ Details and the things left alone: [docs/02-security.md](docs/02-security.md).
 | `eslint.config.mjs` | | Also ignores the generated `coverage/` |
 | `vitest.config.ts` (new) | | Node environment, `@` alias, coverage over `lib/**` |
 | `.github/workflows/ci.yml` (new) | none | Node 24 and 26: type-check, lint, tests with coverage, build, `npm audit` |
-| `test/` (new) | none | 16 test files, helpers, `test/mutation/` (driver, 136 mutants, grouped runner) |
+| `test/` (new) | none | 16 test files, helpers, `test/mutation/` (driver, 144 mutants, grouped runner) |
 
 ### Docs
 
@@ -113,7 +114,7 @@ security section, a docs table; the rest of the owner's text is unchanged). `VER
 3. **Turn off public sign-ups** in Supabase Authentication; the site has no sign-up page.
 4. **Check the storage bucket's policies** in the dashboard (they are not in the repository): `anon` and `authenticated` should not be
    able to upload.
-5. **Decide `TRUST_PROXY_HEADERS`** if the site is not on Vercel.
+5. **Decide `TRUST_PROXY_HEADERS`** if the site is not on Vercel. **Note a behaviour change:** the inquiry API now allows 5 an hour per caller (it allowed 12 a minute); an integration that needs more should get its own authenticated route.
 6. **Push** when satisfied: `git push -u origin chore/modernize` (not done here).
 7. The old project id that `scripts/apply-schema.mjs` hard-coded is still in the repository's history; it is an identifier, not a
    secret. No credential was found in the tree or the history, so no secret needs rotating on account of this pass.

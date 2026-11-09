@@ -1,10 +1,8 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
-import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin-client";
-import { clientAddress } from "@/lib/client-address";
-import { durableRateLimit } from "@/lib/rate-limit";
+import { inquiryOverLimit } from "@/lib/inquiry-limits";
 import {
   contactInquirySchema,
   quoteInquirySchema,
@@ -17,23 +15,10 @@ export type ContactFormState = {
   errors?: Record<string, string[] | undefined>;
 };
 
-/** Per caller, and for the whole site: the overall ceiling only counts callers who are within their own limit. */
-const FORM_LIMITS = {
-  caller: { limit: 5, windowMs: 60 * 60 * 1000 },
-  overall: { limit: 200, windowMs: 60 * 60 * 1000 },
-} as const;
-
 const TOO_MANY: ContactFormState = {
   success: false,
   message: "Too many requests. Please try again later, or call us directly.",
 };
-
-async function overLimit(): Promise<boolean> {
-  const address = clientAddress(await headers());
-  const caller = await durableRateLimit("inquiry-caller", address, FORM_LIMITS.caller);
-  if (!caller.ok) return true;
-  return !(await durableRateLimit("inquiry-overall", "all", FORM_LIMITS.overall)).ok;
-}
 
 export async function submitContactInquiry(
   _prevState: ContactFormState,
@@ -43,7 +28,7 @@ export async function submitContactInquiry(
     return { success: true, message: "Thank you!" };
   }
 
-  if (await overLimit()) return TOO_MANY;
+  if (await inquiryOverLimit()) return TOO_MANY;
 
   const raw = {
     full_name: formData.get("full_name"),
@@ -99,7 +84,7 @@ export async function submitQuoteRequest(
     return { success: true, message: "Thank you!" };
   }
 
-  if (await overLimit()) return TOO_MANY;
+  if (await inquiryOverLimit()) return TOO_MANY;
 
   const raw = {
     full_name: formData.get("full_name"),

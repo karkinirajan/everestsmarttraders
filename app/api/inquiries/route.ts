@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
-import { clientAddress } from "@/lib/client-address";
-import { durableRateLimit } from "@/lib/rate-limit";
+import { inquiryOverLimit } from "@/lib/inquiry-limits";
 import { PayloadTooLargeError, readTextLimited } from "@/lib/read-limited";
 import {
   contactInquirySchema,
@@ -14,16 +13,15 @@ export const dynamic = "force-dynamic";
 // API route for programmatic inquiry submission (e.g., from third-party integrations)
 // The primary path for form submissions uses server actions in lib/actions/inquiry.ts
 
-const API_LIMIT = { limit: 12, windowMs: 60_000 } as const;
 const MAX_BODY_BYTES = 50_000;
 const MAX_LOCATION = 120;
 
 export async function POST(request: Request) {
-  const limited = await durableRateLimit("inquiry-api", clientAddress(request.headers), API_LIMIT);
-  if (!limited.ok) {
+  // the same limits as the forms: this is another way into the same table, not a faster one
+  if (await inquiryOverLimit(request.headers)) {
     return NextResponse.json(
-      { error: "Too many requests. Please try again shortly." },
-      { status: 429, headers: { "Retry-After": String(Math.max(limited.retryAfter, 1)) } },
+      { error: "Too many requests. Please try again later." },
+      { status: 429, headers: { "Retry-After": "3600" } },
     );
   }
 

@@ -3,7 +3,7 @@
 import { requireEditor } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { isUuid, publicMessage } from "@/lib/admin-rules";
-import { MEDIA_TYPES, detectMediaType, safeFolder, storageFileName } from "@/lib/media-rules";
+import { MEDIA_TYPES, detectMediaType, isSafeStoragePath, safeFolder, storageFileName } from "@/lib/media-rules";
 import type { MutateResult } from "@/lib/actions/admin-mutate";
 
 const BUCKET = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "media";
@@ -116,6 +116,10 @@ export async function adminDeleteMedia(id: string): Promise<MutateResult<null>> 
   const admin = createAdminClient();
   const { data: asset } = await admin.from("media_assets").select("storage_path").eq("id", id).maybeSingle();
   if (!asset) return { success: false, error: "That file no longer exists." };
+  if (!isSafeStoragePath(asset.storage_path)) {
+    console.error("[admin] media record has an unsafe storage path:", id);
+    return { success: false, error: "That library item is not valid and cannot be deleted from here." };
+  }
 
   const { error: storageErr } = await admin.storage.from(BUCKET).remove([asset.storage_path]);
   if (storageErr) {

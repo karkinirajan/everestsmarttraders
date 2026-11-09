@@ -86,6 +86,7 @@ cp .env.example .env
 | `NEXT_PUBLIC_STORAGE_BUCKET`     | No       | Storage bucket name (default: `media`)                          |
 | `NEXT_PUBLIC_ADMIN_LOGIN_DOMAIN` | No       | Optional email domain shorthand for admin logins                |
 | `TRUST_PROXY_HEADERS`            | No       | `true` only behind a proxy you control that overwrites `X-Forwarded-For`. Leave unset on Vercel (detected). See [docs/02-security.md](docs/02-security.md) |
+| `TRUST_CLOUDFLARE_HEADERS`       | No       | `true` only if the origin accepts traffic solely from Cloudflare: then `CF-Connecting-IP` is believed too |
 
 ---
 
@@ -276,7 +277,7 @@ The admin layout independently re-validates auth as defence-in-depth.
 - Content Security Policy, X-Frame-Options, HSTS, and other headers set in `next.config.ts`
 - Form inputs sanitized on submission (HTML tags and control characters stripped)
 - Honeypot fields on all public forms to reduce bot submissions
-- Rate limiting: forms 5 per hour per caller and 200 an hour overall, inquiry API 12/min per caller (all counted in Postgres), search API 90/min per caller (in memory)
+- Rate limiting: forms and the inquiry API share one limit, 5 per hour per caller and 200 an hour overall (counted in Postgres); search API 90/min per caller (in memory)
 - All form inputs validated with Zod schemas before database insertion
 - CMS HTML cleaned with an allow-list parser before it is rendered; JSON-LD escaped
 - Admin server actions check the session and role themselves, allow-list tables, validate ids and payloads, and never show database errors to the browser

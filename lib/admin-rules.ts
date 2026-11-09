@@ -29,6 +29,16 @@ export const CONFLICT_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   seo_overrides: ["path"],
 };
 
+/**
+ * Columns the generic actions may never write, per table. A media record's storage_path decides which stored file a later delete
+ * removes, and url, mime_type, size and folder describe that file: they are set by adminUploadMedia from the file's bytes, so a
+ * browser that could rewrite them through adminUpdate could point the record at any object in the bucket. (Only alt and filename
+ * stay editable.)
+ */
+export const PROTECTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  media_assets: ["storage_path", "url", "mime_type", "size", "folder"],
+};
+
 /** Set by the database, never by the browser. */
 const SERVER_MANAGED = ["id", "created_at", "updated_at"] as const;
 
@@ -49,9 +59,10 @@ export type CleanResult = { ok: true; value: Record<string, unknown> } | { ok: f
 
 /**
  * The payload, without the columns the database owns (the id of a row cannot be chosen or moved by the browser; `keep` names
- * the one an upsert is keyed on). It must be a plain object of a sensible size.
+ * the one an upsert is keyed on), and without the columns that are protected for that table. It must be a plain object of a sensible
+ * size.
  */
-export function cleanPayload(payload: unknown, keep: readonly string[] = []): CleanResult {
+export function cleanPayload(payload: unknown, keep: readonly string[] = [], table = ""): CleanResult {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return { ok: false, error: "Invalid data." };
   let size: number;
   try {
@@ -60,9 +71,11 @@ export function cleanPayload(payload: unknown, keep: readonly string[] = []): Cl
     return { ok: false, error: "Invalid data." };
   }
   if (size > MAX_PAYLOAD_BYTES) return { ok: false, error: "That is too much data to save at once." };
+  const protectedColumns = PROTECTED_COLUMNS[table] ?? [];
   const value: Record<string, unknown> = {};
   for (const [key, v] of Object.entries(payload)) {
     if (key === "__proto__") continue;
+    if (protectedColumns.includes(key)) continue;
     if ((SERVER_MANAGED as readonly string[]).includes(key) && !keep.includes(key)) continue;
     value[key] = v;
   }

@@ -16,11 +16,26 @@ describe("clientAddress", () => {
     expect(clientAddress(h, {})).toBe(UNTRUSTED);
   });
   it("uses the first X-Forwarded-For address when trusted", () => expect(clientAddress(headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }), { VERCEL: "1" })).toBe("203.0.113.7"));
-  it("prefers CF-Connecting-IP, then X-Forwarded-For, then X-Real-IP", () => {
+  it("prefers X-Forwarded-For, then X-Real-IP", () => {
     const env = { TRUST_PROXY_HEADERS: "true" };
-    expect(clientAddress(headers({ "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "2.2.2.2", "x-real-ip": "3.3.3.3" }), env)).toBe("1.1.1.1");
     expect(clientAddress(headers({ "x-forwarded-for": "2.2.2.2", "x-real-ip": "3.3.3.3" }), env)).toBe("2.2.2.2");
     expect(clientAddress(headers({ "x-real-ip": "3.3.3.3" }), env)).toBe("3.3.3.3");
+  });
+  it("ignores CF-Connecting-IP on Vercel and behind any other proxy: it is a header the caller can set there", () => {
+    for (const env of [{ VERCEL: "1" }, { TRUST_PROXY_HEADERS: "true" }]) {
+      const a = clientAddress(headers({ "x-forwarded-for": "203.0.113.7", "cf-connecting-ip": "9.9.9.1" }), env);
+      const b = clientAddress(headers({ "x-forwarded-for": "203.0.113.7", "cf-connecting-ip": "9.9.9.2" }), env);
+      expect(a).toBe("203.0.113.7");
+      expect(b).toBe(a);
+    }
+    expect(clientAddress(headers({ "cf-connecting-ip": "9.9.9.1" }), { VERCEL: "1" })).toBe(UNKNOWN);
+  });
+  it("reads CF-Connecting-IP only with the explicit Cloudflare opt-in", () => {
+    const env = { TRUST_PROXY_HEADERS: "true", TRUST_CLOUDFLARE_HEADERS: "true" };
+    expect(clientAddress(headers({ "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "2.2.2.2" }), env)).toBe("1.1.1.1");
+    expect(clientAddress(headers({ "x-forwarded-for": "2.2.2.2" }), env)).toBe("2.2.2.2");
+    expect(clientAddress(headers({ "cf-connecting-ip": "1.1.1.1" }), { ...env, TRUST_CLOUDFLARE_HEADERS: "yes" })).toBe(UNKNOWN);
+    expect(clientAddress(headers({ "cf-connecting-ip": "1.1.1.1" }), { TRUST_CLOUDFLARE_HEADERS: "true" })).toBe(UNTRUSTED); // the opt-in does not turn trust on by itself
   });
   it("says unknown when trusted but no header is present", () => {
     expect(clientAddress(headers({}), { VERCEL: "1" })).toBe(UNKNOWN);

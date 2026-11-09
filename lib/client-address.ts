@@ -6,6 +6,10 @@
  * the app is known to set them: Vercel (the VERCEL variable is set there) or, elsewhere, TRUST_PROXY_HEADERS=true for a proxy
  * you control that overwrites them. Otherwise every caller shares the key "untrusted", so limits then count all callers together.
  *
+ * CF-Connecting-IP is a Cloudflare header: Vercel and other proxies pass it through untouched, so on them it is just another
+ * header the caller can set. It is read only with the extra opt-in TRUST_CLOUDFLARE_HEADERS=true, for a site whose origin accepts
+ * traffic only from Cloudflare.
+ *
  * IPv6 callers are keyed on their /64 (a single customer is normally handed a whole /64, so keying on the full address would
  * give them 2^64 free keys), and an IPv4-mapped IPv6 address is treated as the IPv4 address it wraps.
  */
@@ -44,10 +48,8 @@ export function normalizeAddress(raw: string): string {
 
 export function clientAddress(headers: Headers, env: Record<string, string | undefined> = process.env): string {
   if (!trustsForwardedHeaders(env)) return UNTRUSTED;
-  const candidate =
-    headers.get("cf-connecting-ip") ??
-    headers.get("x-forwarded-for")?.split(",")[0] ??
-    headers.get("x-real-ip");
+  const cloudflare = env.TRUST_CLOUDFLARE_HEADERS === "true" ? headers.get("cf-connecting-ip") : null;
+  const candidate = cloudflare ?? headers.get("x-forwarded-for")?.split(",")[0] ?? headers.get("x-real-ip");
   if (!candidate || !candidate.trim()) return UNKNOWN;
   return normalizeAddress(candidate);
 }

@@ -4,6 +4,8 @@
 # Faster, in separate copies of the repo: python3 test/mutation/groups.py
 #
 # Not listed, because they cannot change behaviour:
+#  - passing the table to cleanPayload in adminUpsert (none of the upsert tables has a protected column today; it is there so one
+#    that gains one is covered);
 #  - dropping `grant execute ... to service_role` in migration 005 (the test database, like Supabase, grants it by default);
 #  - the `, 1)` rounding in a window shorter than a second (Math.max(1, ...) and Math.ceil agree on every value the tests use).
 import pathlib
@@ -22,6 +24,7 @@ AU = "lib/auth.ts"
 AM = "lib/actions/admin-mutate.ts"
 ME = "lib/actions/media.ts"
 IN = "lib/actions/inquiry.ts"
+IL = "lib/inquiry-limits.ts"
 AI = "app/api/inquiries/route.ts"
 AS = "app/api/search/route.ts"
 
@@ -67,6 +70,8 @@ M = [
  ("address: untrusted callers keep their own key", CA, "  if (!trustsForwardedHeaders(env)) return UNTRUSTED;\n", ""),
  ("address: IPv6 keyed on more than the /64", CA, "groups.slice(0, 4)", "groups.slice(0, 8)"),
  ("address: IPv4-mapped addresses kept apart", CA, "  if (mapped?.[1] && isIpv4(mapped[1])) return mapped[1];\n", ""),
+ ("address: Cloudflare's header is always believed", CA, 'env.TRUST_CLOUDFLARE_HEADERS === "true" ? headers.get("cf-connecting-ip") : null', 'headers.get("cf-connecting-ip")'),
+ ("address: any value enables the Cloudflare header", CA, 'env.TRUST_CLOUDFLARE_HEADERS === "true"', "Boolean(env.TRUST_CLOUDFLARE_HEADERS)"),
  ("address: the last forwarded address is used", CA, '.split(",")[0]', '.split(",").pop()'),
  ("address: wrong group counts accepted", CA, "if (groups.length !== 8 ||", "if (false ||"),
  ("address: non-hex groups accepted", CA, "groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))", "false"),
@@ -91,6 +96,7 @@ M = [
  ("rules: payload size unchecked", AR, "  if (size > MAX_PAYLOAD_BYTES)", "  if (false)"),
  ("rules: __proto__ kept", AR, '    if (key === "__proto__") continue;\n', ""),
  ("rules: the upsert key is dropped", AR, "SERVER_MANAGED as readonly string[]).includes(key) && !keep.includes(key)", "SERVER_MANAGED as readonly string[]).includes(key)"),
+ ("rules: protected columns writable", AR, "    if (protectedColumns.includes(key)) continue;\n", ""),
  ("rules: arrays are payloads", AR, 'typeof payload !== "object" || payload === null || Array.isArray(payload)', 'typeof payload !== "object" || payload === null'),
  ("rules: ids are not checked", AR, "const uuid = z.string().uuid();", "const uuid = z.string();"),
  ("rules: database text shown", AR, '      return "Could not save. Please try again.";', "      return String((error as { message?: string } | undefined)?.message);"),
@@ -103,6 +109,8 @@ M = [
  ("media: the whole path is the name", MR, 'originalName.split(/[\\\\/]/).pop() ?? ""', "originalName"),
  ("media: names unbounded", MR, ".toLowerCase().slice(0, 80)", ".toLowerCase()"),
  ("media: extension from nowhere", MR, "}.${MEDIA_TYPES[type].extension}", "}.bin"),
+ ("media: any storage path may be removed", MR, "  return FOLDERS.has(segments[0] as string);", "  return true;"),
+ ("media: parent segments allowed in a storage path", MR, 'segments.some((s) => s === "" || s === "." || s === "..")', "false"),
  ("media: png limit lifted", MR, '"image/png": { extension: "png", maxBytes: 10 * 1024 * 1024 }', '"image/png": { extension: "png", maxBytes: 1000 * 1024 * 1024 }'),
  # --- search, body reader, session
  ("search: pattern not quoted", SE, 'return `"%${quoted}%"`;', "return `%${escaped}%`;"),
@@ -139,7 +147,7 @@ _fn(AM, "export async function adminUpdate<", "actions: update ignores the clean
 _fn(AM, "export async function adminUpdate<", "actions: update is not keyed on the id", '    .eq("id", id)\n', "")
 _fn(AM, "export async function adminDelete(", "actions: delete is not keyed on the id", '.eq("id", id)', "")
 _fn(AM, "export async function adminUpsert<", "actions: upsert skips the conflict-column check", "  const conflictError = checkConflictColumn(table, conflictColumn);\n  if (conflictError) return { success: false, error: conflictError };\n", "")
-_fn(AM, "export async function adminUpsert<", "actions: upsert drops its key column", "cleanPayload(payload, [conflictColumn])", "cleanPayload(payload)")
+_fn(AM, "export async function adminUpsert<", "actions: upsert drops its key column", "cleanPayload(payload, [conflictColumn], table)", "cleanPayload(payload, [], table)")
 _fn(AM, "export async function adminInsert<", "actions: insert shows the database's text", "  if (error) return failed(`insert into ${table}`, error);", "  if (error) return { success: false, error: error.message };")
 # media
 _fn(ME, "export async function adminUploadMedia(", "media: upload needs no session", _AUTH, "")
@@ -151,30 +159,33 @@ _fn(ME, "export async function adminUploadMedia(", "media: the browser's content
 _fn(ME, "export async function adminUploadMedia(", "media: an empty file is accepted", " || file.size === 0", "")
 _fn(ME, "export async function adminUploadMedia(", "media: duplicates uploaded again", "  if (existing) {", "  if (false) {")
 _fn(ME, "export async function adminUploadMedia(", "media: storage error text shown", '    return { success: false, error: "Could not upload the file. Please try again." };', "    return { success: false, error: storageErr.message };")
+_fn(ME, "export async function adminDeleteMedia(", "media: delete skips the path check", "  if (!isSafeStoragePath(asset.storage_path)) {", "  if (false) {")
+_fn(AM, "export async function adminInsert<", "actions: insert does not protect columns", "cleanPayload(payload, [], table)", "cleanPayload(payload, [])")
+_fn(AM, "export async function adminUpdate<", "actions: update does not protect columns", "cleanPayload(payload, [], table)", "cleanPayload(payload, [])")
 _fn(ME, "export async function adminDeleteMedia(", "media: delete skips the id check", '  if (!isUuid(id)) return { success: false, error: "Invalid id." };\n', "")
 _fn(ME, "export async function adminDeleteMedia(", "media: delete of a missing record carries on", '  if (!asset) return { success: false, error: "That file no longer exists." };\n', "")
 _fn(ME, "export async function adminDeleteMedia(", "media: the record goes even if the file stays", '  if (storageErr) {\n    console.error("[admin] media remove failed:", storageErr.message);\n    return { success: false, error: "Could not delete the file. Please try again." };\n  }\n', "")
 # forms
 for fn, label in (("submitContactInquiry", "contact"), ("submitQuoteRequest", "quote")):
     h = f"export async function {fn}("
-    _fn(IN, h, f"forms: {label} is not rate limited", "  if (await overLimit()) return TOO_MANY;\n", "")
+    _fn(IN, h, f"forms: {label} is not rate limited", "  if (await inquiryOverLimit()) return TOO_MANY;\n", "")
     _fn(IN, h, f"forms: {label} honeypot ignored", '  if (String(formData.get("company") ?? "").trim().length > 0) {\n    return { success: true, message: "Thank you!" };\n  }\n', "")
     _fn(IN, h, f"forms: {label} database text is not logged generically", '      message: "Something went wrong. Please try calling us directly.",', "      message: String(error.message),")
 M += [
- ("forms: callers may send fifty an hour", IN, "caller: { limit: 5,", "caller: { limit: 50,"),
- ("forms: the site ceiling is a day", IN, "overall: { limit: 200, windowMs: 60 * 60 * 1000 }", "overall: { limit: 200, windowMs: 24 * 60 * 60 * 1000 }"),
- ("forms: the caller limit is ignored", IN, "  if (!caller.ok) return true;\n", ""),
- ("forms: the site ceiling is ignored", IN, '  return !(await durableRateLimit("inquiry-overall", "all", FORM_LIMITS.overall)).ok;', "  return false;"),
- ("forms: the address header is believed", IN, "const address = clientAddress(await headers());", 'const address = (await headers()).get("x-forwarded-for") ?? "x";'),
+ ("forms: callers may send fifty an hour", IL, "caller: { limit: 5,", "caller: { limit: 50,"),
+ ("forms: the site ceiling is a day", IL, "overall: { limit: 200, windowMs: 60 * 60 * 1000 }", "overall: { limit: 200, windowMs: 24 * 60 * 60 * 1000 }"),
+ ("forms: the caller limit is ignored", IL, "  if (!caller.ok) return true;\n", ""),
+ ("forms: the site ceiling is ignored", IL, '  return !(await durableRateLimit("inquiry-overall", "all", INQUIRY_LIMITS.overall)).ok;', "  return false;"),
+ ("forms: the address header is believed", IL, "const address = clientAddress(requestHeaders ?? (await headers()));", 'const address = (requestHeaders ?? (await headers())).get("x-forwarded-for") ?? "x";'),
+ ("forms: the caller window is a day", IL, "caller: { limit: 5, windowMs: 60 * 60 * 1000 }", "caller: { limit: 5, windowMs: 24 * 60 * 60 * 1000 }"),
  ("forms: message not cleaned", IN, "    message: sanitizePlainText(parsed.data.message),\n    inquiry_type: parsed.data.inquiry_type,", "    message: parsed.data.message,\n    inquiry_type: parsed.data.inquiry_type,"),
  # --- the two routes
- ("api: inquiries not rate limited", AI, "  if (!limited.ok) {", "  if (false) {"),
+ ("api: inquiries not rate limited", AI, "  if (await inquiryOverLimit(request.headers)) {", "  if (false) {"),
  ("api: inquiries body limit lifted", AI, "const MAX_BODY_BYTES = 50_000;", "const MAX_BODY_BYTES = 500_000_000;"),
  ("api: a list is a body", AI, "  if (typeof body !== \"object\" || body === null || Array.isArray(body)) {", "  if (false) {"),
  ("api: location unbounded", AI, "          ? sanitizePlainText(location).slice(0, MAX_LOCATION) || null", "          ? sanitizePlainText(location) || null"),
  ("api: inquiries honeypot ignored", AI, '  if (typeof company === "string" && company.trim().length > 0) {', "  if (false) {"),
- ("api: inquiries trust the forwarded header", AI, "clientAddress(request.headers)", '(request.headers.get("x-forwarded-for") ?? "x")'),
- ("api: inquiries no Retry-After", AI, '{ status: 429, headers: { "Retry-After": String(Math.max(limited.retryAfter, 1)) } }', "{ status: 429 }"),
+ ("api: inquiries no Retry-After", AI, '{ status: 429, headers: { "Retry-After": "3600" } }', "{ status: 429 }"),
  ("api: search not rate limited", AS, "  if (!verdict.ok) {", "  if (false) {"),
  ("api: search limit lifted", AS, "const SEARCH_LIMIT = { limit: 90,", "const SEARCH_LIMIT = { limit: 90000,"),
  ("api: search trusts the forwarded header", AS, "clientAddress(request.headers)", '(request.headers.get("x-forwarded-for") ?? "x")'),

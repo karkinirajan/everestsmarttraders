@@ -85,6 +85,12 @@ describe("what is written", () => {
     await adminUpsert("site_settings", { key: "phone", value: "1", id: "x" }, "key");
     expect(fake.calls[1]?.payload).toEqual({ key: "phone", value: "1" });
   });
+  it("cannot rewrite what a media record points at, through insert, update or upsert", async () => {
+    await adminUpdate("media_assets", ID, { alt: "New alt", storage_path: "general/other.png", url: "https://x", folder: "site", mime_type: "text/html", size: 1 });
+    await adminInsert("media_assets", { alt: "A", storage_path: "general/other.png", filename: "a.png" });
+    expect(fake.calls[0]?.payload).toEqual({ alt: "New alt" });
+    expect(fake.calls[1]?.payload).toEqual({ alt: "A", filename: "a.png" });
+  });
   it("delete is keyed on the id", async () => {
     await adminDelete("faqs", ID);
     expect(fake.calls[0]).toMatchObject({ table: "faqs", op: "delete" });

@@ -56,3 +56,16 @@ export function safeBaseName(originalName: string): string {
 export function storageFileName(hash: string, originalName: string, type: MediaType): string {
   return `${hash}_${safeBaseName(originalName)}.${MEDIA_TYPES[type].extension}`;
 }
+
+/**
+ * A stored path that is safe to hand to storage.remove(): a known folder, then a plain file name. No "..", no empty segment (which
+ * is what a leading or doubled slash makes), no backslash or control character. (Paths made by older uploads, which kept the browser's file name, still pass.)
+ */
+export function isSafeStoragePath(path: unknown): path is string {
+  if (typeof path !== "string" || path.length === 0 || path.length > 300) return false;
+  if (/[\\\u0000-\u001f\u007f]/.test(path)) return false;
+  const segments = path.split("/");
+  if (segments.length < 2 || segments.some((s) => s === "" || s === "." || s === "..")) return false;
+  return FOLDERS.has(segments[0] as string);
+}
+

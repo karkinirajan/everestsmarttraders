@@ -141,6 +141,13 @@ describe("adminDeleteMedia", () => {
     expect(fake.storageCalls).toEqual([{ op: "remove", bucket: "media", args: [["products/abc_gate.png"]] }]);
     expect(fake.calls.find((c) => c.op === "delete")?.filters).toEqual([["eq:id", ID]]);
   });
+  it.each(["../secret/x.png", "/etc/passwd", "unknown/x.png", "products/../../x.png", "gate.png", ""])("will not remove the unsafe path %j that a record might name", async (path) => {
+    fake.answer("media_assets.select", { data: { storage_path: path }, error: null });
+    const result = await adminDeleteMedia(ID);
+    expect(result.success).toBe(false);
+    expect(fake.storageCalls).toEqual([]);
+    expect(fake.calls.some((c) => c.op === "delete")).toBe(false);
+  });
   it("says so when the record is gone, and removes nothing", async () => {
     fake.answer("media_assets.select", { data: null, error: null });
     expect(await adminDeleteMedia(ID)).toEqual({ success: false, error: "That file no longer exists." });

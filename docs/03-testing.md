@@ -5,7 +5,7 @@ npm test                 # everything, once
 npm run test:coverage    # with coverage
 ```
 
-361 tests in 16 files (Vitest). They need no network, no Supabase project and no credentials; the whole run takes about 20 seconds.
+395 tests in 16 files (Vitest). They need no network, no Supabase project and no credentials; the whole run takes about 20 seconds.
 
 ## Layout
 
@@ -43,23 +43,23 @@ Over `lib/**` (the code that holds the rules):
 
 | | |
 |---|---|
-| Statements | 71.92% (374 of 520) |
-| Branches | 74.46% (277 of 372) |
-| Functions | 51.42% (54 of 105) |
-| Lines | 69.35% (310 of 447) |
+| Statements | 72.81% (391 of 537) |
+| Branches | 76.07% (302 of 397) |
+| Functions | 52.33% (56 of 107) |
+| Lines | 70.15% (322 of 459) |
 
 The number is held down by files this pass did not touch and that have no tests: `lib/supabase/queries.ts` (the public data
 queries, 387 lines), `lib/utils.ts`, `lib/image-fallbacks.ts` and the Supabase client factories. The modules this pass added or
 rewrote are at 100% of statements (`media-rules`, `rate-limit`, `sanitize`, `json-ld`, `client-address`, `admin-rules`, `search`,
-`read-limited`, `auth`) except the actions, which are at 96 to 100%. The interface (`app/`, `components/`) has no tests, and no
+`read-limited`, `auth`, `inquiry-limits`) except the actions, which are at 96 to 100%. The interface (`app/`, `components/`) has no tests, and no
 browser test exists in this repository.
 
 ## Mutation checks
 
-`test/mutation/mutants.py` holds 136 deliberate bugs, each `(name, file, old text, new text)`: a limit off by one, a check removed,
+`test/mutation/mutants.py` holds 144 deliberate bugs, each `(name, file, old text, new text)`: a limit off by one, a check removed,
 a script scheme allowed, a trigger not attached, a policy kept, an upload type loosened, a rate limit ignored. The driver applies
-one at a time and counts it **killed** if the tests then fail. All 136 are killed. (The first run found seven survivors: five
-missing assertions and one redundant guard, which was removed.)
+one at a time and counts it **killed** if the tests then fail. All 144 are killed. (The first run found seven survivors: five
+missing assertions and one redundant guard, which was removed; a later one found a second redundant check, which was removed.)
 
 ```bash
 python3 test/mutation/mutate.py test/mutation/mutants.py -- npx vitest run --bail 1

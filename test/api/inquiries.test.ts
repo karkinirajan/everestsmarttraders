@@ -28,31 +28,41 @@ describe("POST /api/inquiries", () => {
     expect(fake.calls[0]).toMatchObject({ table: "inquiries", op: "insert", payload: { full_name: "Sita Sharma", status: "new", location: "Kathmandu" } });
   });
 
-  it("counts per caller in the database: 12 a minute", async () => {
+  it("uses the same limits as the forms: the caller (5 an hour), then the whole site (200 an hour)", async () => {
     await send(VALID);
-    expect(fake.rpcCalls[0]).toEqual({ fn: "rate_limit_hit", args: { p_key: limiterKey("inquiry-api", "untrusted"), p_window_seconds: 60 } });
+    expect(fake.rpcCalls.map((c) => c.args)).toEqual([
+      { p_key: limiterKey("inquiry-caller", "untrusted"), p_window_seconds: 3600 },
+      { p_key: limiterKey("inquiry-overall", "all"), p_window_seconds: 3600 },
+    ]);
   });
-  it("answers 429 with Retry-After when over the limit, and stores nothing", async () => {
-    fake.rpcAnswer = { data: 13, error: null };
+  it("answers 429 with Retry-After when the caller is over the limit, and stores nothing", async () => {
+    fake.rpcAnswer = { data: 6, error: null };
     const response = await send(VALID);
     expect(response.status).toBe(429);
     expect(Number(response.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
     expect(fake.calls).toEqual([]);
+    expect(fake.rpcCalls).toHaveLength(1);
   });
-  it("allows exactly 12", async () => {
-    fake.rpcAnswer = { data: 12, error: null };
+  it("answers 429 when the whole site is over its ceiling", async () => {
+    fake.rpcQueue = [{ data: 1, error: null }, { data: 201, error: null }];
+    expect((await send(VALID)).status).toBe(429);
+    expect(fake.calls).toEqual([]);
+  });
+  it("allows exactly five from one caller", async () => {
+    fake.rpcAnswer = { data: 5, error: null };
     expect((await send(VALID)).status).toBe(201);
   });
   it("does not let a caller pick their rate-limit key with a header", async () => {
     await send(VALID, { "x-forwarded-for": "1.1.1.1" });
     await send(VALID, { "x-forwarded-for": "2.2.2.2" });
-    const keys = fake.rpcCalls.map((c) => (c.args as { p_key: string }).p_key);
-    expect(new Set(keys).size).toBe(1);
+    const callerKeys = fake.rpcCalls.map((c) => (c.args as { p_key: string }).p_key).filter((k) => k.startsWith("inquiry-caller:"));
+    expect(callerKeys).toHaveLength(2);
+    expect(new Set(callerKeys).size).toBe(1);
   });
   it("uses the real address on Vercel", async () => {
     process.env.VERCEL = "1";
     await send(VALID, { "x-forwarded-for": "203.0.113.9" });
-    expect((fake.rpcCalls[0]?.args as { p_key: string }).p_key).toBe(limiterKey("inquiry-api", "203.0.113.9"));
+    expect((fake.rpcCalls[0]?.args as { p_key: string }).p_key).toBe(limiterKey("inquiry-caller", "203.0.113.9"));
   });
 
   it("refuses a body that claims to be too big", async () => {

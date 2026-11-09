@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MEDIA_TYPES, detectMediaType, safeBaseName, safeFolder, storageFileName } from "@/lib/media-rules";
+import { MEDIA_TYPES, detectMediaType, isSafeStoragePath, safeBaseName, safeFolder, storageFileName } from "@/lib/media-rules";
 
 const bytes = (...values: (number | string)[]) => Uint8Array.from(values.flatMap((v) => (typeof v === "string" ? [...v].map((c) => c.charCodeAt(0)) : [v])));
 
@@ -66,3 +66,12 @@ describe("file names", () => {
     expect(storageFileName("abc123", "photo.exe", "image/jpeg")).toBe("abc123_photo.jpg");
   });
 });
+
+describe("isSafeStoragePath", () => {
+  it.each(["products/abcdef0123456789_gate.png", "general/0123456789abcdef_my-photo.jpg", "blog/a/b/c.png", "site/Old Upload (1).JPG"])("accepts %j", (p) => expect(isSafeStoragePath(p)).toBe(true));
+  it.each([
+    "", "gate.png", "/products/a.png", "products//a.png", "products/../site/a.png", "../products/a.png", "products/./a.png", "products/a.png/..",
+    "unknown/a.png", "products\\a.png", "products/a\u0000.png", "products/a\n.png", "products/", "x".repeat(301), null, undefined, 5, {},
+  ])("refuses %j", (p) => expect(isSafeStoragePath(p)).toBe(false));
+});
+

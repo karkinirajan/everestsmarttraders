@@ -50,7 +50,7 @@ export async function adminInsert<T = Record<string, unknown>>(
   const auth = await requireEditor();
   if (!auth.ok) return { success: false, error: auth.error };
 
-  const clean = cleanPayload(payload);
+  const clean = cleanPayload(payload, [], table);
   if (!clean.ok) return { success: false, error: clean.error };
 
   const admin = createAdminClient();
@@ -77,7 +77,7 @@ export async function adminUpdate<T = Record<string, unknown>>(
   const auth = await requireEditor();
   if (!auth.ok) return { success: false, error: auth.error };
 
-  const clean = cleanPayload(payload);
+  const clean = cleanPayload(payload, [], table);
   if (!clean.ok) return { success: false, error: clean.error };
 
   const admin = createAdminClient();
@@ -106,7 +106,7 @@ export async function adminUpsert<T = Record<string, unknown>>(
   const auth = await requireEditor();
   if (!auth.ok) return { success: false, error: auth.error };
 
-  const clean = cleanPayload(payload, [conflictColumn]);
+  const clean = cleanPayload(payload, [conflictColumn], table);
   if (!clean.ok) return { success: false, error: clean.error };
 
   const admin = createAdminClient();

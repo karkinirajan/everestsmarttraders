@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONFLICT_COLUMNS, MAX_PAYLOAD_BYTES, MUTABLE_TABLES, checkConflictColumn, checkTable, cleanPayload, isUuid, publicMessage } from "@/lib/admin-rules";
+import { CONFLICT_COLUMNS, MAX_PAYLOAD_BYTES, MUTABLE_TABLES, PROTECTED_COLUMNS, checkConflictColumn, checkTable, cleanPayload, isUuid, publicMessage } from "@/lib/admin-rules";
 
 describe("checkTable", () => {
   it.each([...MUTABLE_TABLES])("allows %s", (table) => expect(checkTable(table)).toBeNull());
@@ -37,6 +37,15 @@ describe("cleanPayload", () => {
   it("keeps the one an upsert is keyed on, and only that", () => {
     const r = cleanPayload({ id: "abc", created_at: "x", title: "T" }, ["id"]);
     expect(r).toEqual({ ok: true, value: { id: "abc", title: "T" } });
+  });
+  it("drops the columns that are protected for the table: a media record cannot be pointed at another stored file", () => {
+    const r = cleanPayload({ alt: "A gate", filename: "gate.png", storage_path: "general/other.png", url: "https://x", mime_type: "text/html", size: 1, folder: "site" }, [], "media_assets");
+    expect(r).toEqual({ ok: true, value: { alt: "A gate", filename: "gate.png" } });
+    for (const column of PROTECTED_COLUMNS.media_assets ?? []) expect(r.ok && column in r.value).toBe(false);
+  });
+  it("protects only the named table's columns", () => {
+    expect(cleanPayload({ storage_path: "x", folder: "y" }, [], "products")).toEqual({ ok: true, value: { storage_path: "x", folder: "y" } });
+    expect(cleanPayload({ storage_path: "x" })).toEqual({ ok: true, value: { storage_path: "x" } });
   });
   it("drops __proto__", () => {
     const r = cleanPayload(JSON.parse('{"__proto__": {"admin": true}, "name": "x"}'));
