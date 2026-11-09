@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SITE_NAME, SITE_URL } from "@/lib/constants";
+import { jsonLd } from "@/lib/json-ld";
 
 // Self-hosted via next/font — eliminates external font requests (zero CLS)
 const geistSans = Geist({
@@ -98,7 +99,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: jsonLd({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: SITE_NAME,

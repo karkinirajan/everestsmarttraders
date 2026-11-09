@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
 import {
   absoluteUrl,
-  dangerousHtml,
   formatDate,
   readingTime,
 } from "@/lib/utils";
+import { dangerousHtml } from "@/lib/sanitize";
 import {
   getBlogPostBySlug,
   getAllPublishedBlogSlugs,

@@ -8,8 +8,8 @@ Production-grade marketing site and CMS for Everest Smart Traders, Nepal's trust
 
 | Layer      | Technology                           |
 | ---------- | ------------------------------------ |
-| Framework  | Next.js 16.2 (App Router, Turbopack) |
-| UI         | React 19, TypeScript 5.9 (strict)    |
+| Framework  | Next.js 16.4 (App Router, Turbopack) |
+| UI         | React 19.3, TypeScript 6.0 (strict)  |
 | Styling    | Tailwind CSS v4, tw-animate-css      |
 | Components | Base UI + shadcn-style primitives    |
 | Icons      | Lucide React                         |
@@ -18,6 +18,8 @@ Production-grade marketing site and CMS for Everest Smart Traders, Nepal's trust
 | Storage    | Supabase Storage                     |
 | Validation | Zod v4                               |
 | Images     | next/image + sharp                   |
+| HTML       | sanitize-html (allow-list cleaner)   |
+| Tests      | Vitest, PGlite (Postgres in WASM)    |
 
 ---
 
@@ -40,14 +42,24 @@ everest-smart-traders/
 ├── lib/
 │   ├── actions/           # Server actions (form submission)
 │   ├── supabase/          # Supabase clients + data queries
-│   └── validations/       # Zod schemas + sanitization
+│   ├── validations/       # Zod schemas + sanitization
+│   ├── auth.ts            # requireEditor / requireAdmin for server actions
+│   ├── admin-rules.ts     # what the admin actions may write, and what errors may say
+│   ├── media-rules.ts     # what may be uploaded (type from the bytes)
+│   ├── rate-limit.ts      # Postgres-backed counters, in-memory fallback
+│   ├── client-address.ts  # who is calling (forwarded headers trusted only where safe)
+│   ├── sanitize.ts        # allow-list HTML cleaner for CMS content
+│   └── json-ld.ts, search.ts, read-limited.ts
 ├── types/                 # TypeScript types (mirrors DB schema)
 ├── supabase/
 │   ├── migrations/        # SQL schema migrations
 │   └── seed.sql           # SQL seed data
 ├── scripts/
-│   ├── apply-schema.mjs   # Apply schema to Supabase project
+│   ├── apply-schema.mjs   # Apply every migration to the Supabase project, in order
+│   ├── build-setup-sql.mjs# Generate supabase/setup.sql from the migrations
 │   └── seed-db.mjs        # JavaScript seed script (preferred)
+├── test/                  # Vitest: unit, action/route, database (real Postgres), mutation
+├── docs/                  # Chapters: architecture, security, testing, operations
 ├── public/
 │   ├── images/            # Static images (fallback gallery, brand assets)
 │   └── site.webmanifest   # PWA manifest
@@ -73,6 +85,8 @@ cp .env.example .env
 | `NEXT_PUBLIC_SITE_URL`           | Yes      | Full public URL (e.g., `https://everestsmarttraders.com`)       |
 | `NEXT_PUBLIC_STORAGE_BUCKET`     | No       | Storage bucket name (default: `media`)                          |
 | `NEXT_PUBLIC_ADMIN_LOGIN_DOMAIN` | No       | Optional email domain shorthand for admin logins                |
+| `TRUST_PROXY_HEADERS`            | No       | `true` only behind a proxy you control that overwrites `X-Forwarded-For`. Leave unset on Vercel (detected). See [docs/02-security.md](docs/02-security.md) |
+| `TRUST_CLOUDFLARE_HEADERS`       | No       | `true` only if the origin accepts traffic solely from Cloudflare: then `CF-Connecting-IP` is believed too |
 
 ---
 
@@ -80,8 +94,11 @@ cp .env.example .env
 
 ### 1. Install dependencies
 
+Node 24 or newer (`.nvmrc` says 26, the current LTS):
+
 ```bash
-npm install
+nvm use
+npm ci
 ```
 
 ### 2. Set up environment variables
@@ -97,7 +114,7 @@ cp .env.example .env
 node scripts/apply-schema.mjs
 ```
 
-Runs the two migration files (`001_initial_schema.sql`, `002_rls_policies.sql`) against your Supabase project.
+Runs every file in `supabase/migrations`, in order, against your Supabase project (the project is the one `NEXT_PUBLIC_SUPABASE_URL` names; it needs `SUPABASE_ACCESS_TOKEN` in `.env.local`). On a database that already ran the first three, apply only the newer ones: `node scripts/apply-schema.mjs --from 004`. **`004` closes a privilege-escalation hole; see [docs/02-security.md](docs/02-security.md).** Or paste `supabase/setup.sql` (generated from the migrations) into the SQL editor.
 
 ### 4. Seed the database
 
@@ -119,7 +136,9 @@ This clears application content tables and repopulates deterministic seed data f
 
 In your Supabase dashboard:
 1. **Authentication → Users → Add User** — create a user with email and password
-2. **Table Editor → profiles** — set `role` to `admin` for that user's row
+2. **SQL editor** — `update public.profiles set role = 'admin' where email = '<their email>';` (a signed-in user cannot change a role; the SQL editor and the service-role key can)
+
+Also **turn off public sign-ups** in Supabase Authentication: the site has no sign-up page.
 
 ### 7. Start the dev server
 
@@ -141,6 +160,11 @@ npm run dev
 | Start           | `npm run start`                 | Run production build                                |
 | Lint            | `npm run lint`                  | ESLint (0 warnings allowed)                         |
 | Type Check      | `npm run type-check`            | TypeScript strict check                             |
+| Test            | `npm test`                      | Unit, action, route and database tests (Vitest)     |
+| Coverage        | `npm run test:coverage`         | The same, with coverage                             |
+| Check           | `npm run check`                 | Type-check, lint and tests                          |
+| CI              | `npm run ci`                    | `check`, then a production build and `npm audit`    |
+| Setup SQL       | `npm run db:build-setup`        | Regenerate `supabase/setup.sql` from the migrations |
 | Apply Schema    | `node scripts/apply-schema.mjs` | Apply DB migrations                                 |
 | Seed            | `node scripts/seed-db.mjs`      | Seed all tables with sample data                    |
 | Reset + Seed    | `npm run db:reset-seed`         | Clear application data and reseed deterministically |
@@ -178,8 +202,9 @@ npm run dev
 
 - Public reads only see published/active content
 - Authenticated admins and editors have full CMS write access
-- Public can insert inquiries (contact/quote forms)
-- The service role key bypasses RLS for secure server-side writes
+- Nobody can write through the anon key: the forms insert with the service-role key (after validation and a rate limit)
+- A signed-in user cannot change a role (migration `004`); only an admin, the SQL editor or the service-role key can
+- The service role key bypasses RLS for secure server-side writes, so the code that holds it applies the rules (`lib/admin-rules.ts`, `lib/media-rules.ts`)
 
 ---
 
@@ -206,7 +231,8 @@ Verify:
 - [ ] All environment variables are set in the deployment platform
 - [ ] `NEXT_PUBLIC_SITE_URL` is set to your production domain
 - [ ] At least one admin user exists in Supabase Auth
-- [ ] Database schema has been applied (`apply-schema.mjs`)
+- [ ] Database schema has been applied, **including `004` and `005`** (`apply-schema.mjs`)
+- [ ] Public sign-ups are off in Supabase Authentication
 - [ ] `robots.txt` and `sitemap.xml` resolve at the production domain
 
 ### Vercel
@@ -251,8 +277,13 @@ The admin layout independently re-validates auth as defence-in-depth.
 - Content Security Policy, X-Frame-Options, HSTS, and other headers set in `next.config.ts`
 - Form inputs sanitized on submission (HTML tags and control characters stripped)
 - Honeypot fields on all public forms to reduce bot submissions
-- Rate limiting on the inquiry API (12/min per IP) and search API (90/min per IP)
+- Rate limiting: forms and the inquiry API share one limit, 5 per hour per caller and 200 an hour overall (counted in Postgres); search API 90/min per caller (in memory)
 - All form inputs validated with Zod schemas before database insertion
+- CMS HTML cleaned with an allow-list parser before it is rendered; JSON-LD escaped
+- Admin server actions check the session and role themselves, allow-list tables, validate ids and payloads, and never show database errors to the browser
+- Uploads: type read from the file's bytes, 10 MB cap, known folders only
+
+Details, what was fixed and what is left: [docs/02-security.md](docs/02-security.md).
 
 ### Caching
 
@@ -267,6 +298,21 @@ The admin layout independently re-validates auth as defence-in-depth.
 
 - **Adding admin users:** Supabase Auth dashboard → create user → set `role = admin` in `profiles`
 - **Content updates:** Admin dashboard at `/admin`
-- **Schema changes:** Add a new file in `supabase/migrations/`, run `apply-schema.mjs`
+- **Schema changes:** Add a new file in `supabase/migrations/`, run `apply-schema.mjs --from <number>`, then `npm run db:build-setup`
 - **Image uploads:** Media section in the admin dashboard
 - **Reseeding:** `node scripts/seed-db.mjs` is safe to re-run (all upserts)
+
+---
+
+## Documentation
+
+| Chapter | Covers |
+| ------- | ------ |
+| [01 Architecture](docs/01-architecture.md) | Request flow, trust levels, where each rule lives, migrations |
+| [02 Security](docs/02-security.md) | What was fixed, how to configure it, what is left |
+| [03 Testing](docs/03-testing.md) | The suite, the real-Postgres tests, mutation checks |
+| [04 Operations](docs/04-operations.md) | Migrations to apply, first admin, secrets, logs, CI |
+| [VERSIONS.md](VERSIONS.md) | What it runs on and why |
+| [work-done.md](work-done.md) | What was there and what changed, file by file |
+
+`INSTRUCTIONS.md` is the original build's working document and was left as it was.

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
-import { getClientIp, searchQuerySchema } from "@/lib/validations/inquiry";
+import { clientAddress } from "@/lib/client-address";
+import { limiterKey, memoryRateLimit } from "@/lib/rate-limit";
+import { productSearchFilter, projectSearchFilter } from "@/lib/search";
+import { searchQuerySchema } from "@/lib/validations/inquiry";
 
 // Note: `new URL(request.url).searchParams` is synchronous Web API —
 // async searchParams only applies to Next.js page component props, not route handlers.
@@ -8,27 +11,16 @@ import { getClientIp, searchQuerySchema } from "@/lib/validations/inquiry";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const rateMap = new Map<string, { count: number; resetAt: number }>();
-
-function pruneExpiredRateEntries(now: number) {
-  for (const [key, value] of rateMap) {
-    if (value.resetAt < now) rateMap.delete(key);
-  }
-}
+// In memory, per instance: enough to make the limit visible on a public search box (the form routes count in Postgres).
+const SEARCH_LIMIT = { limit: 90, windowMs: 60_000 } as const;
 
 export async function GET(request: Request) {
-  const ip = getClientIp(request);
-  const now = Date.now();
-  pruneExpiredRateEntries(now);
-  const state = rateMap.get(ip);
-  if (!state || state.resetAt < now) {
-    rateMap.set(ip, { count: 1, resetAt: now + 60_000 });
-  } else {
-    if (state.count >= 90) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
-    state.count += 1;
-    rateMap.set(ip, state);
+  const verdict = memoryRateLimit(limiterKey("search", clientAddress(request.headers)), SEARCH_LIMIT);
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfter) } },
+    );
   }
 
   try {
@@ -46,20 +38,18 @@ export async function GET(request: Request) {
 
     const supabase = createAdminClient();
 
-    const q = `%${validated.data.q}%`;
-
     const [productsRes, projectsRes] = await Promise.all([
       supabase
         .from("products")
         .select("id, name, slug, cover_image_url, price_range, category:product_categories(name, slug)")
         .eq("is_published", true)
-        .or(`name.ilike.${q},short_description.ilike.${q}`)
+        .or(productSearchFilter(validated.data.q))
         .limit(6),
       supabase
         .from("projects")
         .select("id, title, slug, cover_image_url, location, summary")
         .eq("is_published", true)
-        .or(`title.ilike.${q},summary.ilike.${q},location.ilike.${q}`)
+        .or(projectSearchFilter(validated.data.q))
         .limit(4),
     ]);
 

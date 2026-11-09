@@ -31,27 +31,3 @@ export async function createClient() {
     }
   );
 }
-
-/**
- * Admin client using service role key — bypasses RLS.
- * Only for trusted server-side operations (seeding, migrations, admin actions).
- * NEVER expose this client to the browser.
- */
-export async function createAdminClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {
-          // Admin client does not manage session cookies
-        },
-      },
-    }
-  );
-}

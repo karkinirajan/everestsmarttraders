@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 
 export type PasswordFormState = {
@@ -46,22 +46,12 @@ export async function updateUserPassword(
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, message: "Not signed in." };
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return { success: false, message: "Only admins can change passwords." };
+  const auth = await requireAdmin();
+  if (!auth.ok) {
+    return {
+      success: false,
+      message: auth.error === "Not signed in." ? auth.error : "Only admins can change passwords.",
+    };
   }
 
   const admin = createAdminClient();

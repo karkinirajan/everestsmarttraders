@@ -63,6 +63,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "@base-ui/react"],
+    // The media library uploads through a server action, whose body is capped at 1 MB by default: a normal photo did not fit.
+    // lib/media-rules.ts caps every file at 10 MB.
+    serverActions: { bodySizeLimit: "11mb" },
   },
 };
 

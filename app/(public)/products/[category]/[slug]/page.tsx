@@ -11,7 +11,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { pickFallbackImage } from "@/lib/image-fallbacks";
-import { absoluteUrl, dangerousHtml, whatsappLink } from "@/lib/utils";
+import { absoluteUrl, whatsappLink } from "@/lib/utils";
+import { dangerousHtml } from "@/lib/sanitize";
 import {
   getProductBySlug,
   getSitemapProducts,

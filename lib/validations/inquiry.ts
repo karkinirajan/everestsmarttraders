@@ -55,19 +55,3 @@ export function sanitizePlainText(value: string) {
     .replace(/[\u0000-\u001F\u007F]/g, "")
     .trim();
 }
-
-export function getClientIp(request: Request): string {
-  const cfConnectingIp = request.headers.get("cf-connecting-ip");
-  if (cfConnectingIp) return cfConnectingIp.trim();
-
-  const xForwardedFor = request.headers.get("x-forwarded-for");
-  if (xForwardedFor) {
-    const first = xForwardedFor.split(",")[0];
-    if (first) return first.trim();
-  }
-
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
-
-  return "unknown";
-}

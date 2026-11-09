@@ -2,6 +2,7 @@
 
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-client";
+import { inquiryOverLimit } from "@/lib/inquiry-limits";
 import {
   contactInquirySchema,
   quoteInquirySchema,
@@ -14,6 +15,11 @@ export type ContactFormState = {
   errors?: Record<string, string[] | undefined>;
 };
 
+const TOO_MANY: ContactFormState = {
+  success: false,
+  message: "Too many requests. Please try again later, or call us directly.",
+};
+
 export async function submitContactInquiry(
   _prevState: ContactFormState,
   formData: FormData
@@ -21,6 +27,8 @@ export async function submitContactInquiry(
   if (String(formData.get("company") ?? "").trim().length > 0) {
     return { success: true, message: "Thank you!" };
   }
+
+  if (await inquiryOverLimit()) return TOO_MANY;
 
   const raw = {
     full_name: formData.get("full_name"),
@@ -75,6 +83,8 @@ export async function submitQuoteRequest(
   if (String(formData.get("company") ?? "").trim().length > 0) {
     return { success: true, message: "Thank you!" };
   }
+
+  if (await inquiryOverLimit()) return TOO_MANY;
 
   const raw = {
     full_name: formData.get("full_name"),
